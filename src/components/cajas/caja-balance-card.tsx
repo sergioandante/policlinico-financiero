@@ -9,7 +9,7 @@ export function CajaBalanceCard({
   saldo,
 }: {
   nombre: string;
-  tipo: "CHICA" | "GRANDE";
+  tipo: string; // viene de Prisma como String (SQLite/Postgres sin enum nativo aquí)
   saldo: number;
 }) {
   const esGrande = tipo === "GRANDE";
