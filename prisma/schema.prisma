@@ -1,0 +1,255 @@
+// ============================================================================
+// POLICLÍNICO - MÓDULO FINANCIERO Y ADMINISTRATIVO
+// Prototipo: SQLite (fácil de migrar a PostgreSQL/Supabase después,
+// solo cambia "provider" y "url" abajo).
+//
+// NOTA: el conector de SQLite de Prisma NO soporta `enum` en el datamodel,
+// por eso los campos que antes eran enum ahora son String. La validación de
+// los valores permitidos se hace en la capa de aplicación con zod (ver
+// src/lib/actions/*.ts), tal como ya se validaba antes de convertir a
+// String. Al migrar a PostgreSQL basta con volver a declarar los enums.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql" // Supabase (producción)
+  url       = env("DATABASE_URL") // pooler, usado por la app
+  directUrl = env("DIRECT_URL")   // conexión directa, usada solo por prisma migrate
+}
+
+// ---------------------------------------------------------------------------
+// USUARIOS Y ROLES
+// Rol válidos: ADMINISTRADOR | GERENTE | LOGISTICA | CONTADOR | DOCTOR
+// ---------------------------------------------------------------------------
+
+model Usuario {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  rol          String
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  transacciones      Transaccion[]
+  movimientosCaja    MovimientoCaja[]
+  solicitudesCreadas SolicitudCompra[]      @relation("solicitante")
+  solicitudesResueltas SolicitudCompra[]    @relation("aprobador")
+  movimientosInventario MovimientoInventario[]
+  metricasSalud      MetricaSalud[]
+
+  @@map("usuarios")
+}
+
+// ---------------------------------------------------------------------------
+// BIODATA DEL DOCTOR (Módulo Doctor/Biodata)
+// Registro diario de métricas de salud, vinculado 1:N al Usuario (rol DOCTOR).
+// Solo el propio doctor puede leer/escribir sus filas (ver src/lib/permisos.ts
+// y las consultas/acciones, que siempre filtran por usuarioId de la sesión).
+// ---------------------------------------------------------------------------
+
+model MetricaSalud {
+  id                String   @id @default(cuid())
+  usuarioId         String
+  usuario           Usuario  @relation(fields: [usuarioId], references: [id])
+  fecha             DateTime @default(now())
+  pesoKg            Decimal
+  alturaCm          Decimal
+  imc               Decimal // calculado en el server action: pesoKg / (alturaCm/100)^2
+  presionSistolica  Int
+  presionDiastolica Int
+  notas             String?
+  createdAt         DateTime @default(now())
+
+  @@index([usuarioId, fecha])
+  @@map("metricas_salud")
+}
+
+// ---------------------------------------------------------------------------
+// CATEGORÍAS (configurables, con subcategorías vía self-relation)
+// tipo válidos: INGRESO | EGRESO
+// ---------------------------------------------------------------------------
+
+model Categoria {
+  id       String     @id @default(cuid())
+  nombre   String
+  tipo     String
+  activo   Boolean    @default(true)
+  parentId String?
+  parent   Categoria? @relation("subcategorias", fields: [parentId], references: [id])
+  hijos    Categoria[] @relation("subcategorias")
+
+  transacciones Transaccion[]
+  presupuestos  Presupuesto[]
+
+  @@map("categorias")
+}
+
+// ---------------------------------------------------------------------------
+// CAJAS (Chica y Grande) + MOVIMIENTOS
+// tipo válidos: CHICA | GRANDE
+// ---------------------------------------------------------------------------
+
+model Caja {
+  id           String   @id @default(cuid())
+  nombre       String
+  tipo         String   @unique
+  saldoActual  Decimal  @default(0)
+  updatedAt    DateTime @updatedAt
+
+  movimientos       MovimientoCaja[] @relation("cajaOrigen")
+  movimientosDestino MovimientoCaja[] @relation("cajaDestino")
+
+  @@map("cajas")
+}
+
+// tipo válidos: INGRESO | EGRESO | TRASPASO_SALIDA | TRASPASO_ENTRADA | RETIRO | ADELANTO_SUELDO
+model MovimientoCaja {
+  id            String       @id @default(cuid())
+  cajaId        String
+  caja          Caja         @relation("cajaOrigen", fields: [cajaId], references: [id])
+  tipo          String
+  monto         Decimal
+  saldoAnterior Decimal
+  saldoNuevo    Decimal
+  descripcion   String
+  beneficiario  String? // para retiros / adelantos de sueldo
+  // Si es traspaso, referencia a la caja destino y al par de movimiento
+  cajaDestinoId String?
+  cajaDestino   Caja?    @relation("cajaDestino", fields: [cajaDestinoId], references: [id])
+  traspasoRef   String? // agrupa las 2 filas (salida/entrada) de un mismo traspaso
+  transaccionId String?  @unique
+  transaccion   Transaccion? @relation(fields: [transaccionId], references: [id])
+  usuarioId     String
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  fecha         DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([cajaId, fecha])
+  @@map("movimientos_caja")
+}
+
+// ---------------------------------------------------------------------------
+// TRANSACCIONES FINANCIERAS (ingresos y egresos "de negocio")
+// Cada transacción que afecta caja genera automáticamente un MovimientoCaja
+// tipo válidos: INGRESO | EGRESO
+// metodoPago válidos: EFECTIVO | TARJETA | TRANSFERENCIA | YAPE_PLIN | OTRO
+// origen válidos: MANUAL | IMPORTACION_EXCEL
+// ---------------------------------------------------------------------------
+
+model Transaccion {
+  id            String   @id @default(cuid())
+  tipo          String
+  monto         Decimal
+  fecha         DateTime
+  categoriaId   String
+  categoria     Categoria @relation(fields: [categoriaId], references: [id])
+  descripcion   String
+  metodoPago    String   @default("EFECTIVO")
+  comprobante   String? // número de boleta/factura
+  proveedorOCliente String?
+  cajaId        String? // null = no afecta caja (ej. transferencia directa a banco)
+  origen        String   @default("MANUAL")
+  usuarioId     String
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  createdAt     DateTime @default(now())
+
+  movimientoCaja MovimientoCaja?
+
+  @@index([fecha])
+  @@index([tipo, categoriaId])
+  @@map("transacciones")
+}
+
+// ---------------------------------------------------------------------------
+// PRESUPUESTOS
+// ---------------------------------------------------------------------------
+
+model Presupuesto {
+  id            String   @id @default(cuid())
+  categoriaId   String
+  categoria     Categoria @relation(fields: [categoriaId], references: [id])
+  nombre        String // ej: "Marketing - Julio 2026"
+  montoAsignado Decimal
+  periodoMes    Int // 1-12
+  periodoAnio   Int
+  umbralAlerta  Int      @default(80) // % para disparar alerta amarilla
+  createdAt     DateTime @default(now())
+
+  @@unique([categoriaId, periodoMes, periodoAnio])
+  @@map("presupuestos")
+}
+
+// ---------------------------------------------------------------------------
+// INVENTARIO BÁSICO
+// ---------------------------------------------------------------------------
+
+model InventarioItem {
+  id               String   @id @default(cuid())
+  nombre           String
+  categoria        String // ej: "Vacunas", "Insumos médicos", "Suplementos"
+  unidadMedida     String   @default("unidad")
+  stockActual      Int      @default(0)
+  stockMinimo      Int      @default(0)
+  fechaVencimiento DateTime?
+  activo           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  movimientos MovimientoInventario[]
+
+  @@map("inventario_items")
+}
+
+// tipo válidos: ENTRADA | SALIDA
+model MovimientoInventario {
+  id         String         @id @default(cuid())
+  itemId     String
+  item       InventarioItem @relation(fields: [itemId], references: [id])
+  tipo       String
+  cantidad   Int
+  motivo     String
+  usuarioId  String
+  usuario    Usuario        @relation(fields: [usuarioId], references: [id])
+  fecha      DateTime       @default(now())
+
+  @@map("movimientos_inventario")
+}
+
+// ---------------------------------------------------------------------------
+// SOLICITUDES DE COMPRA
+// estado válidos: PENDIENTE | APROBADA | RECHAZADA | COMPLETADA
+// ---------------------------------------------------------------------------
+
+model SolicitudCompra {
+  id               String   @id @default(cuid())
+  codigo           String   @unique // ej: SC-2026-0001
+  area             String // Logística, Marketing, Administración...
+  justificacion    String
+  montoEstimado    Decimal
+  estado           String   @default("PENDIENTE")
+  solicitanteId    String
+  solicitante      Usuario  @relation("solicitante", fields: [solicitanteId], references: [id])
+  aprobadorId      String?
+  aprobador        Usuario? @relation("aprobador", fields: [aprobadorId], references: [id])
+  comentarioResolucion String?
+  fechaSolicitud   DateTime @default(now())
+  fechaResolucion  DateTime?
+
+  items SolicitudCompraItem[]
+
+  @@map("solicitudes_compra")
+}
+
+model SolicitudCompraItem {
+  id              String          @id @default(cuid())
+  solicitudId     String
+  solicitud       SolicitudCompra @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  descripcion     String
+  cantidad        Int
+  precioEstimado  Decimal
+
+  @@map("solicitud_compra_items")
+}
