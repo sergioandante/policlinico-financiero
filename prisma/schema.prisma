@@ -157,10 +157,19 @@ model Transaccion {
   usuario       Usuario  @relation(fields: [usuarioId], references: [id])
   createdAt     DateTime @default(now())
 
+  // Clasificación automática por área/especialidad, calculada a partir de la
+  // descripción al crear la transacción (ver src/lib/clasificacion-areas.ts).
+  // area válidos: BP | C_HG | TR | ODONTOLOGIA | OTROS (null en egresos)
+  area               String?
+  // subclaseBP válidos: CONSULTA | PAQUETE | REVISAR (solo cuando area = BP)
+  subclaseBP         String?
+  posiblePagoMultiple Boolean @default(false)
+
   movimientoCaja MovimientoCaja?
 
   @@index([fecha])
   @@index([tipo, categoriaId])
+  @@index([area, fecha])
   @@map("transacciones")
 }
 

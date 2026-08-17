@@ -135,6 +135,48 @@ Columnas (en `/transacciones/importar`):
   configurada en el sistema (el importador te muestra qué filas no
   encontraron match antes de guardar nada).
 
+### 9. Clasificación automática por área/especialidad (BP, C HG, TR, Odontología)
+
+Para reemplazar el filtrado y la revisión manual, fila por fila, del reporte
+que exportan de la plataforma actual, cada ingreso se clasifica solo (al
+crearse manualmente o al importar el Excel) según reglas definidas con el
+cliente. La lógica vive en un único archivo, `src/lib/clasificacion-areas.ts`,
+y se aplica siempre en el servidor (`crearTransaccion` /
+`crearTransaccionesEnLote`), nunca confiando en lo que calcule el navegador:
+
+- **Área**, a partir del texto de la descripción:
+  - **BP**: cualquier mención de "BP", excluyendo las que mencionen "Bío".
+  - **C HG**: Chequeo General Completo.
+  - **TR**: Traumatología.
+  - **Odontología**: por nombre.
+- **Subclase, solo para BP**, según el monto pagado:
+  - Hasta S/ 350 (inclusive) → **Consulta**.
+  - S/ 600 a más → **Compra de paquete**.
+  - Entre 350 y 600 → no se fuerza una clasificación: queda marcada
+    **"Revisar manualmente"** en vez de adivinar.
+- **Posible pago múltiple**: si un monto de consulta BP es múltiplo limpio de
+  un precio de consulta de referencia (hoy S/ 75, ver constante
+  `BP_PRECIO_CONSULTA_REFERENCIA`), se marca como aviso — nunca se divide el
+  monto automáticamente, solo se avisa para que se revise.
+
+> ⚠️ **Pendiente de confirmar con el cliente (reunión del viernes):** el
+> precio de referencia de consulta BP individual (S/ 75) es un supuesto para
+> poder detectar pagos combinados como el de "S/150 = 2 consultas". Ajustar
+> `BP_PRECIO_CONSULTA_REFERENCIA` en `src/lib/clasificacion-areas.ts` en
+> cuanto se confirme el valor real.
+
+El **dashboard** usa esta clasificación para mostrar, del mes en curso, cuánto
+se generó por cada área (tarjeta "Ingresos por área") y el detalle de
+consultas vs. paquetes de BP. A propósito, los meses anteriores al actual NO
+se desglosan por área (para no saturar el histórico) — solo se grafica la
+facturación bruta mes a mes, marcando el mes con más ingresos como "pico"
+(gráfico "Ingresos vs. Egresos", ahora con 12 meses de histórico).
+
+El importador de Excel (`/transacciones/importar`) muestra esta clasificación
+en la vista previa — con un resumen de totales por área y el detalle por
+fila — antes de confirmar, así el usuario ve de un vistazo el resultado en
+vez de revisar registro por registro.
+
 ### Comandos útiles adicionales
 
 ```bash

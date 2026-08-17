@@ -5,11 +5,12 @@ import { obtenerResumenDashboard, obtenerPresupuestosActivos } from "@/lib/consu
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { IngresosEgresosChart } from "@/components/dashboard/ingresos-egresos-chart";
 import { FlujoCajaChart } from "@/components/dashboard/flujo-caja-chart";
+import { IngresosPorAreaChart } from "@/components/dashboard/ingresos-por-area-chart";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { formatearMoneda, formatearFecha } from "@/lib/utils";
-import { DollarSign, TrendingDown, TrendingUp, Wallet2, AlertTriangle } from "lucide-react";
+import { DollarSign, TrendingDown, TrendingUp, Wallet2, AlertTriangle, LayoutGrid } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -42,12 +43,65 @@ export default async function DashboardPage() {
         <KpiCard titulo="Saldo total en cajas" valor={resumen.saldoCajas} icon={Wallet2} />
       </div>
 
+      {/* Desglose por área — solo mes en curso, ver clasificacion-areas.ts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4 text-brand-600" />
+              Ingresos por área
+            </CardTitle>
+            <CardDescription>
+              Desglose del mes en curso por especialidad (BP, Chequeo General, Traumatología, Odontología)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {resumen.ingresosPorArea.length > 0 ? (
+              <IngresosPorAreaChart data={resumen.ingresosPorArea} />
+            ) : (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                Aún no hay ingresos clasificados este mes.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Detalle BP</CardTitle>
+            <CardDescription>Consultas vs. paquetes, mes en curso</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Consultas</span>
+              <span className="font-tabular font-medium">{formatearMoneda(resumen.subclasesBP.CONSULTA)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Paquetes</span>
+              <span className="font-tabular font-medium">{formatearMoneda(resumen.subclasesBP.PAQUETE)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Por revisar (S/350–S/600)</span>
+              <span className="font-tabular font-medium text-alerta">{formatearMoneda(resumen.subclasesBP.REVISAR)}</span>
+            </div>
+            {resumen.pagosMultiplesDetectados > 0 && (
+              <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+                {resumen.pagosMultiplesDetectados} pago(s) marcados como posible consulta múltiple.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Gráficos */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Ingresos vs. Egresos</CardTitle>
-            <CardDescription>Comparativo de los últimos 6 meses</CardDescription>
+            <CardDescription>
+              Tendencia histórica (últimos 12 meses) · pico: {resumen.picoIngresosMes.mes} con{" "}
+              {formatearMoneda(resumen.picoIngresosMes.ingresos)}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <IngresosEgresosChart data={resumen.dataMensual} />

@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatearMoneda } from "@/lib/utils";
-import { UploadCloud, CheckCircle2, XCircle } from "lucide-react";
+import { UploadCloud, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { clasificarTransaccion, AREA_LABELS, SUBCLASE_BP_LABELS, type Area } from "@/lib/clasificacion-areas";
 
 // tipo viene de Prisma como string (SQLite no soporta enums nativos).
 type Categoria = { id: string; nombre: string; tipo: string };
@@ -24,6 +25,11 @@ type FilaProcesada = {
   metodoPago: string;
   valida: boolean;
   errores: string[];
+  // Clasificación automática por área (solo informativa en el preview; el
+  // servidor la vuelve a calcular al guardar, ver crearTransaccionesEnLote).
+  area: Area | null;
+  subclaseLabel: string | null;
+  posiblePagoMultiple: boolean;
 };
 
 // Normaliza texto para hacer matching tolerante a tildes/mayúsculas
@@ -84,6 +90,20 @@ function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
   };
   const metodoPago = metodoMap[normalizar(rawMetodo)] ?? "EFECTIVO";
 
+  // Clasificación automática por área/especialidad a partir de la
+  // descripción — reemplaza la revisión manual fila por fila.
+  let area: Area | null = null;
+  let subclaseLabel: string | null = null;
+  let posiblePagoMultiple = false;
+  if (tipo === "INGRESO" && monto) {
+    const clasificacion = clasificarTransaccion(String(rawDescripcion), monto);
+    area = clasificacion.area;
+    posiblePagoMultiple = clasificacion.posiblePagoMultiple;
+    if (clasificacion.area === "BP" && clasificacion.subclaseBP) {
+      subclaseLabel = SUBCLASE_BP_LABELS[clasificacion.subclaseBP];
+    }
+  }
+
   return {
     tipo,
     monto: monto || null,
@@ -94,6 +114,9 @@ function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
     metodoPago,
     valida: errores.length === 0,
     errores,
+    area,
+    subclaseLabel,
+    posiblePagoMultiple,
   };
 }
 
@@ -122,6 +145,13 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
 
   const validas = filas.filter((f) => f.valida);
   const invalidas = filas.filter((f) => !f.valida);
+  const revisarManualmente = validas.filter((f) => f.subclaseLabel === SUBCLASE_BP_LABELS.REVISAR);
+
+  const totalesPorArea = validas.reduce<Record<string, number>>((acc, f) => {
+    if (!f.area || !f.monto) return acc;
+    acc[f.area] = (acc[f.area] ?? 0) + f.monto;
+    return acc;
+  }, {});
 
   async function confirmarImportacion() {
     setEnviando(true);
@@ -170,7 +200,7 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
 
       {filas.length > 0 && (
         <>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Badge variant="success" className="text-sm">
               <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> {validas.length} filas listas para importar
             </Badge>
@@ -179,7 +209,29 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
                 <XCircle className="w-3.5 h-3.5 mr-1" /> {invalidas.length} filas con errores (se omitirán)
               </Badge>
             )}
+            {revisarManualmente.length > 0 && (
+              <Badge variant="warning" className="text-sm">
+                <AlertCircle className="w-3.5 h-3.5 mr-1" /> {revisarManualmente.length} filas BP entre S/350 y
+                S/600 para revisar manualmente
+              </Badge>
+            )}
           </div>
+
+          {Object.keys(totalesPorArea).length > 0 && (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm font-medium mb-3">Clasificación automática por área (este lote)</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {Object.entries(totalesPorArea).map(([area, total]) => (
+                    <div key={area} className="rounded-md border border-border bg-muted/40 p-3">
+                      <p className="text-xs text-muted-foreground">{AREA_LABELS[area as Area]}</p>
+                      <p className="font-tabular font-semibold">{formatearMoneda(total)}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="pt-6 max-h-96 overflow-auto">
@@ -190,6 +242,7 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
                     <TableHead>Tipo</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead>Descripción</TableHead>
+                    <TableHead>Área</TableHead>
                     <TableHead className="text-right">Monto</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -208,6 +261,29 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
                       <TableCell className="text-sm">{f.tipo ?? "—"}</TableCell>
                       <TableCell className="text-sm">{f.categoriaNombre || "—"}</TableCell>
                       <TableCell className="text-sm max-w-xs truncate">{f.descripcion || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {f.area ? (
+                          <div className="flex flex-col gap-0.5">
+                            <Badge variant="secondary" className="w-fit text-xs">
+                              {AREA_LABELS[f.area]}
+                            </Badge>
+                            {f.subclaseLabel && (
+                              <span
+                                className={
+                                  f.subclaseLabel === SUBCLASE_BP_LABELS.REVISAR
+                                    ? "text-xs text-alerta"
+                                    : "text-xs text-muted-foreground"
+                                }
+                              >
+                                {f.subclaseLabel}
+                                {f.posiblePagoMultiple ? " · posible pago múltiple" : ""}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-tabular text-sm">
                         {f.monto ? formatearMoneda(f.monto) : "—"}
                       </TableCell>
