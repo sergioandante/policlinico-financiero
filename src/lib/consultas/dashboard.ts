@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale";
+import { AREA_LABELS, type Area } from "@/lib/clasificacion-areas";
 
 export async function obtenerResumenDashboard() {
   const ahora = new Date();
@@ -23,9 +24,14 @@ export async function obtenerResumenDashboard() {
   const egresosMes = Number(egresosMesAgg._sum.monto ?? 0);
   const saldoCajas = cajas.reduce((acc, c) => acc + Number(c.saldoActual), 0);
 
-  // Serie mensual (últimos 6 meses) para el gráfico comparativo
+  // Serie mensual histórica (últimos 12 meses) para el gráfico de tendencia
+  // general. A propósito NO se desglosa por área en meses pasados (para no
+  // saturar el histórico con demasiado detalle) — solo se grafican los
+  // valores brutos de facturación, marcando el mes con más ingresos como
+  // "pico". El desglose por área/especialidad solo aplica al mes en curso
+  // (ver ingresosPorArea más abajo).
   const dataMensual = [];
-  for (let i = 5; i >= 0; i--) {
+  for (let i = 11; i >= 0; i--) {
     const mes = subMonths(ahora, i);
     const inicio = startOfMonth(mes);
     const fin = endOfMonth(mes);
@@ -37,8 +43,28 @@ export async function obtenerResumenDashboard() {
       mes: format(mes, "MMM", { locale: es }),
       ingresos: Number(ingresos._sum.monto ?? 0),
       egresos: Number(egresos._sum.monto ?? 0),
+      esMesActual: i === 0,
     });
   }
+  const picoIngresosMes = dataMensual.reduce((max, m) => (m.ingresos > max.ingresos ? m : max), dataMensual[0]);
+
+  // Desglose de ingresos por área/especialidad — solo del mes en curso.
+  const ingresosDelMes = await prisma.transaccion.findMany({
+    where: { tipo: "INGRESO", fecha: { gte: inicioMes, lte: finMes } },
+    select: { area: true, subclaseBP: true, monto: true, posiblePagoMultiple: true },
+  });
+  const totalesPorArea = new Map<Area, number>();
+  const subclasesBP = { CONSULTA: 0, PAQUETE: 0, REVISAR: 0 } as Record<string, number>;
+  let pagosMultiplesDetectados = 0;
+  for (const t of ingresosDelMes) {
+    const area = (t.area ?? "OTROS") as Area;
+    totalesPorArea.set(area, (totalesPorArea.get(area) ?? 0) + Number(t.monto));
+    if (area === "BP" && t.subclaseBP) subclasesBP[t.subclaseBP] += Number(t.monto);
+    if (t.posiblePagoMultiple) pagosMultiplesDetectados++;
+  }
+  const ingresosPorArea = Array.from(totalesPorArea.entries())
+    .map(([area, total]) => ({ area, label: AREA_LABELS[area], total }))
+    .sort((a, b) => b.total - a.total);
 
   // Flujo de caja acumulado (últimos 30 días) usando movimientos_caja
   const movimientos = await prisma.movimientoCaja.findMany({
@@ -96,8 +122,12 @@ export async function obtenerResumenDashboard() {
     saldoCajas,
     cajas: cajas.map((c) => ({ id: c.id, nombre: c.nombre, tipo: c.tipo, saldo: Number(c.saldoActual) })),
     dataMensual,
+    picoIngresosMes,
     flujoAcumulado,
     anomalias,
+    ingresosPorArea,
+    subclasesBP,
+    pagosMultiplesDetectados,
   };
 }
 

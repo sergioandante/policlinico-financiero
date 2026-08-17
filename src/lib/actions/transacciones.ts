@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
+import { clasificarTransaccion } from "@/lib/clasificacion-areas";
 
 const esquemaTransaccion = z.object({
   tipo: z.enum(["INGRESO", "EGRESO"]),
@@ -33,6 +34,11 @@ export async function crearTransaccion(_prevState: any, formData: FormData) {
   }
   const data = parsed.data;
 
+  // Clasificación automática por área/especialidad (solo aplica a ingresos;
+  // ver src/lib/clasificacion-areas.ts para las reglas).
+  const clasificacion =
+    data.tipo === "INGRESO" ? clasificarTransaccion(data.descripcion, data.monto) : null;
+
   try {
     await prisma.$transaction(async (tx) => {
       const transaccion = await tx.transaccion.create({
@@ -47,6 +53,9 @@ export async function crearTransaccion(_prevState: any, formData: FormData) {
           proveedorOCliente: data.proveedorOCliente || null,
           cajaId: data.cajaId || null,
           usuarioId: session.user.id,
+          area: clasificacion?.area ?? null,
+          subclaseBP: clasificacion?.subclaseBP ?? null,
+          posiblePagoMultiple: clasificacion?.posiblePagoMultiple ?? false,
         },
       });
 
@@ -100,7 +109,17 @@ export async function crearTransaccionesEnLote(
   usuarioId: string
 ) {
   await prisma.transaccion.createMany({
-    data: filas.map((f) => ({ ...f, origen: "IMPORTACION_EXCEL" as const, usuarioId })),
+    data: filas.map((f) => {
+      const clasificacion = f.tipo === "INGRESO" ? clasificarTransaccion(f.descripcion, f.monto) : null;
+      return {
+        ...f,
+        origen: "IMPORTACION_EXCEL" as const,
+        usuarioId,
+        area: clasificacion?.area ?? null,
+        subclaseBP: clasificacion?.subclaseBP ?? null,
+        posiblePagoMultiple: clasificacion?.posiblePagoMultiple ?? false,
+      };
+    }),
   });
   revalidatePath("/transacciones");
   revalidatePath("/dashboard");

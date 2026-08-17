@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { clasificarTransaccion } from "../src/lib/clasificacion-areas";
 
 const prisma = new PrismaClient();
 
@@ -78,6 +79,17 @@ async function main() {
   const catOtrosIngresos = await prisma.categoria.create({
     data: { nombre: "Otros ingresos", tipo: "INGRESO" },
   });
+
+  // Categorías por área/especialidad (ver src/lib/clasificacion-areas.ts) —
+  // usadas para las transacciones de ejemplo clasificadas automáticamente.
+  const catBP = await prisma.categoria.create({ data: { nombre: "BP", tipo: "INGRESO" } });
+  const catChequeoGeneral = await prisma.categoria.create({
+    data: { nombre: "Chequeo General Completo (C HG)", tipo: "INGRESO" },
+  });
+  const catTraumatologia = await prisma.categoria.create({
+    data: { nombre: "Traumatología (TR)", tipo: "INGRESO" },
+  });
+  const catOdontologia = await prisma.categoria.create({ data: { nombre: "Odontología", tipo: "INGRESO" } });
 
   const catSalarios = await prisma.categoria.create({
     data: { nombre: "Salarios", tipo: "EGRESO" },
@@ -174,39 +186,163 @@ async function main() {
     ],
   });
 
-  // ---------- TRANSACCIONES DE EJEMPLO (últimos ~2 meses) ----------
-  const catsIngreso = await prisma.categoria.findMany({ where: { tipo: "INGRESO", parentId: { not: null } } });
+  // ---------- TRANSACCIONES DE EJEMPLO ----------
+  // Dos bloques, siguiendo lo pedido: (1) histórico mes a mes SIN desglose
+  // por área, solo para graficar la tendencia general con sus picos; (2) el
+  // mes en curso CON desglose por área, usando descripciones que incluyen
+  // los códigos (BP, C HG, TR, Odontología) para que la clasificación
+  // automática los agrupe igual que lo hará con los datos reales importados
+  // desde Excel. Los montos son ilustrativos, no datos reales del cliente.
+  const catsIngresoGenerico = await prisma.categoria.findMany({ where: { tipo: "INGRESO", parentId: { not: null } } });
   const catsEgreso = [catSalarios, catProveedores, catServicios, catMarketing, catInventarioCompras];
+  const metodosPago = ["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE_PLIN"] as const;
 
-  const transacciones = [];
-  for (let i = 0; i < 45; i++) {
-    const dias = Math.floor(Math.random() * 60);
-    const fecha = new Date(hoy.getTime() - dias * 24 * 3600 * 1000);
-    const esIngreso = Math.random() > 0.35;
-    if (esIngreso) {
-      const cat = catsIngreso[Math.floor(Math.random() * catsIngreso.length)];
+  const transacciones: {
+    tipo: "INGRESO" | "EGRESO";
+    monto: number;
+    fecha: Date;
+    categoriaId: string;
+    descripcion: string;
+    metodoPago: (typeof metodosPago)[number];
+    usuarioId: string;
+    area?: string | null;
+    subclaseBP?: string | null;
+    posiblePagoMultiple?: boolean;
+  }[] = [];
+
+  // --- (1) Histórico ene-jul (sin desglose por área), con picos como en el
+  // ejemplo del cliente (repunte de abril, 111k mayo vs 134k junio) ---
+  const facturacionMensualObjetivo: { mesIndex: number; anio: number; total: number }[] = [
+    { mesIndex: 0, anio: 2026, total: 78000 }, // enero
+    { mesIndex: 1, anio: 2026, total: 82000 }, // febrero
+    { mesIndex: 2, anio: 2026, total: 96000 }, // marzo
+    { mesIndex: 3, anio: 2026, total: 121000 }, // abril (repunte)
+    { mesIndex: 4, anio: 2026, total: 111000 }, // mayo
+    { mesIndex: 5, anio: 2026, total: 134000 }, // junio (pico)
+    { mesIndex: 6, anio: 2026, total: 105000 }, // julio
+  ];
+  for (const { mesIndex, anio, total } of facturacionMensualObjetivo) {
+    const diasEnMes = new Date(anio, mesIndex + 1, 0).getDate();
+    const numTransacciones = 22;
+    // Pesos aleatorios que luego se escalan para sumar exactamente el total objetivo.
+    const pesos = Array.from({ length: numTransacciones }, () => 0.5 + Math.random());
+    const sumaPesos = pesos.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < numTransacciones; i++) {
+      const cat = catsIngresoGenerico[Math.floor(Math.random() * catsIngresoGenerico.length)];
+      const dia = 1 + Math.floor(Math.random() * diasEnMes);
       transacciones.push({
-        tipo: "INGRESO" as const,
-        monto: Math.round((300 + Math.random() * 1200) * 100) / 100,
-        fecha,
+        tipo: "INGRESO",
+        monto: Math.round((total * (pesos[i] / sumaPesos)) * 100) / 100,
+        fecha: new Date(anio, mesIndex, dia),
         categoriaId: cat.id,
         descripcion: "Pago de paciente - " + cat.nombre,
-        metodoPago: ["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE_PLIN"][Math.floor(Math.random() * 4)] as any,
+        metodoPago: metodosPago[Math.floor(Math.random() * metodosPago.length)],
         usuarioId: admin.id,
-      });
-    } else {
-      const cat = catsEgreso[Math.floor(Math.random() * catsEgreso.length)];
-      transacciones.push({
-        tipo: "EGRESO" as const,
-        monto: Math.round((80 + Math.random() * 900) * 100) / 100,
-        fecha,
-        categoriaId: cat.id,
-        descripcion: "Gasto - " + cat.nombre,
-        metodoPago: "TRANSFERENCIA" as const,
-        usuarioId: gerente.id,
+        area: null,
+        subclaseBP: null,
       });
     }
   }
+
+  // --- (2) Mes en curso, con clasificación automática por área ---
+  const anioActual = hoy.getFullYear();
+  const mesActual = hoy.getMonth();
+  const diaMaxActual = hoy.getDate();
+
+  function fechaAleatoriaDelMes() {
+    const dia = 1 + Math.floor(Math.random() * diaMaxActual);
+    return new Date(anioActual, mesActual, dia);
+  }
+
+  function agregarIngresoClasificado(descripcion: string, monto: number, categoriaId: string) {
+    const clasificacion = clasificarTransaccion(descripcion, monto);
+    transacciones.push({
+      tipo: "INGRESO",
+      monto,
+      fecha: fechaAleatoriaDelMes(),
+      categoriaId,
+      descripcion,
+      metodoPago: metodosPago[Math.floor(Math.random() * metodosPago.length)],
+      usuarioId: admin.id,
+      area: clasificacion.area,
+      subclaseBP: clasificacion.subclaseBP,
+      posiblePagoMultiple: clasificacion.posiblePagoMultiple,
+    });
+  }
+
+  // BP — consultas individuales (<= 350)
+  for (let i = 0; i < 14; i++) {
+    agregarIngresoClasificado(
+      `Consulta BP - paciente ${i + 1}`,
+      [75, 100, 150, 220, 280, 350][Math.floor(Math.random() * 6)],
+      catBP.id
+    );
+  }
+  // BP — pagos combinados (2 consultas en 1 solo cobro, dispara "posible pago múltiple")
+  agregarIngresoClasificado("Consulta BP - pago combinado 2 pacientes", 150, catBP.id);
+  agregarIngresoClasificado("Consulta BP - pago combinado 2 pacientes", 150, catBP.id);
+  // BP — compra de paquetes (>= 600)
+  for (let i = 0; i < 10; i++) {
+    agregarIngresoClasificado(
+      `Compra paquete BP - paciente ${i + 1}`,
+      [600, 750, 850, 950, 1100][Math.floor(Math.random() * 5)],
+      catBP.id
+    );
+  }
+  // BP — zona gris (350-600), queda marcada para revisar manualmente
+  agregarIngresoClasificado("Pago BP - combo mixto paciente", 480, catBP.id);
+  agregarIngresoClasificado("Pago BP - combo mixto paciente", 420, catBP.id);
+
+  // C HG — Chequeo General Completo
+  for (let i = 0; i < 9; i++) {
+    agregarIngresoClasificado(
+      `C HG - Chequeo General Completo, paciente ${i + 1}`,
+      [180, 220, 250, 300][Math.floor(Math.random() * 4)],
+      catChequeoGeneral.id
+    );
+  }
+
+  // TR — Traumatología
+  for (let i = 0; i < 12; i++) {
+    agregarIngresoClasificado(
+      `TR - Traumatología, paciente ${i + 1}`,
+      [120, 180, 250, 400, 550][Math.floor(Math.random() * 5)],
+      catTraumatologia.id
+    );
+  }
+
+  // Odontología
+  for (let i = 0; i < 8; i++) {
+    agregarIngresoClasificado(
+      `Odontología - paciente ${i + 1}`,
+      [90, 150, 200, 320][Math.floor(Math.random() * 4)],
+      catOdontologia.id
+    );
+  }
+
+  // Otros ingresos del mes (sin código de área reconocido)
+  for (let i = 0; i < 4; i++) {
+    agregarIngresoClasificado(`Otros servicios - paciente ${i + 1}`, [100, 180, 260][Math.floor(Math.random() * 3)], catOtrosIngresos.id);
+  }
+
+  // --- Egresos (últimos 60 días, sin cambios respecto al prototipo original) ---
+  for (let i = 0; i < 25; i++) {
+    const dias = Math.floor(Math.random() * 60);
+    const fecha = new Date(hoy.getTime() - dias * 24 * 3600 * 1000);
+    const cat = catsEgreso[Math.floor(Math.random() * catsEgreso.length)];
+    transacciones.push({
+      tipo: "EGRESO",
+      monto: Math.round((80 + Math.random() * 900) * 100) / 100,
+      fecha,
+      categoriaId: cat.id,
+      descripcion: "Gasto - " + cat.nombre,
+      metodoPago: "TRANSFERENCIA",
+      usuarioId: gerente.id,
+      area: null,
+      subclaseBP: null,
+    });
+  }
+
   for (const t of transacciones) {
     await prisma.transaccion.create({ data: t });
   }
