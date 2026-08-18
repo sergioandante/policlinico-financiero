@@ -1,20 +1,20 @@
 import { prisma } from "@/lib/prisma";
 
-export async function obtenerSolicitudesCompra(filtros: { estado?: string; area?: string }) {
+export async function obtenerSolicitudesCompra(filtros: { estado?: string; areaId?: string }) {
   const where: any = {};
   if (filtros.estado) where.estado = filtros.estado;
-  if (filtros.area) where.area = filtros.area;
+  if (filtros.areaId) where.areaId = filtros.areaId;
 
   const solicitudes = await prisma.solicitudCompra.findMany({
     where,
-    include: { solicitante: true, aprobador: true, items: true },
+    include: { solicitante: true, aprobador: true, items: true, area: true },
     orderBy: { fechaSolicitud: "desc" },
   });
 
   return solicitudes.map((s) => ({
     id: s.id,
     codigo: s.codigo,
-    area: s.area,
+    area: s.area.nombre,
     justificacion: s.justificacion,
     montoEstimado: Number(s.montoEstimado),
     estado: s.estado,

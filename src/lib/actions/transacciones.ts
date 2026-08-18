@@ -11,6 +11,7 @@ const esquemaTransaccion = z.object({
   monto: z.coerce.number().positive("El monto debe ser mayor a 0"),
   fecha: z.string().min(1),
   categoriaId: z.string().min(1, "Selecciona una categoría"),
+  areaId: z.string().min(1, "Selecciona el área"),
   descripcion: z.string().min(3, "Agrega una descripción"),
   metodoPago: z.enum(["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE_PLIN", "OTRO"]),
   comprobante: z.string().optional(),
@@ -41,6 +42,7 @@ export async function crearTransaccion(_prevState: any, formData: FormData) {
           monto: data.monto,
           fecha: new Date(data.fecha),
           categoriaId: data.categoriaId,
+          areaId: data.areaId,
           descripcion: data.descripcion,
           metodoPago: data.metodoPago,
           comprobante: data.comprobante || null,
@@ -94,6 +96,7 @@ export async function crearTransaccionesEnLote(
     monto: number;
     fecha: Date;
     categoriaId: string;
+    areaId?: string | null;
     descripcion: string;
     metodoPago: "EFECTIVO" | "TARJETA" | "TRANSFERENCIA" | "YAPE_PLIN" | "OTRO";
   }[],

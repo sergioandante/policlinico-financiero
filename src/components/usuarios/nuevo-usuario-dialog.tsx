@@ -71,7 +71,6 @@ export function NuevoUsuarioDialog() {
                 <SelectItem value="GERENTE">Gerente</SelectItem>
                 <SelectItem value="LOGISTICA">Logística</SelectItem>
                 <SelectItem value="CONTADOR">Contador (solo lectura)</SelectItem>
-                <SelectItem value="DOCTOR">Doctor</SelectItem>
               </SelectContent>
             </Select>
           </div>

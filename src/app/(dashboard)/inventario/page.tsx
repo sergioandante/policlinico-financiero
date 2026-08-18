@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { NuevoItemDialog } from "@/components/inventario/nuevo-item-dialog";
 import { AjustarStockDialog } from "@/components/inventario/ajustar-stock-dialog";
+import { ExportarExcelButton } from "@/components/shared/exportar-excel-button";
 import { formatearFecha } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
 
@@ -16,7 +17,19 @@ export default async function InventarioPage() {
 
   const items = await obtenerInventario();
   const puedeEditar = puede(session.user.rol, "editarInventario");
+  const puedeExportar = puede(session.user.rol, "exportarExcel");
   const alertas = items.filter((i) => i.stockBajo || i.porVencer);
+
+  const filasExportar = items.map((i) => ({
+    Codigo: i.codigo,
+    Concepto: i.nombre,
+    Categoria: i.categoria,
+    Cantidad: i.stockActual,
+    UnidadMedida: i.unidadMedida,
+    StockMinimo: i.stockMinimo,
+    Vencimiento: i.fechaVencimiento ? formatearFecha(i.fechaVencimiento) : "",
+    Estado: i.stockBajo ? "Stock bajo" : i.porVencer ? "Por vencer" : "OK",
+  }));
 
   return (
     <div className="space-y-6">
@@ -25,7 +38,12 @@ export default async function InventarioPage() {
           <h1 className="font-display text-2xl font-bold text-ink">Inventario</h1>
           <p className="text-sm text-muted-foreground">Vacunas, suplementos e insumos médicos.</p>
         </div>
-        {puedeEditar && <NuevoItemDialog />}
+        <div className="flex gap-2">
+          {puedeExportar && (
+            <ExportarExcelButton data={filasExportar} nombreArchivo="inventario" hojaNombre="Inventario" />
+          )}
+          {puedeEditar && <NuevoItemDialog />}
+        </div>
       </div>
 
       {alertas.length > 0 && (
@@ -56,6 +74,7 @@ export default async function InventarioPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Código</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Stock actual</TableHead>
@@ -68,6 +87,7 @@ export default async function InventarioPage() {
             <TableBody>
               {items.map((i) => (
                 <TableRow key={i.id}>
+                  <TableCell className="text-xs font-mono text-muted-foreground">{i.codigo}</TableCell>
                   <TableCell className="font-medium text-sm">{i.nombre}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{i.categoria}</TableCell>
                   <TableCell className="text-sm font-tabular">

@@ -13,6 +13,7 @@ import { UploadCloud, CheckCircle2, XCircle } from "lucide-react";
 
 // tipo viene de Prisma como string (SQLite no soporta enums nativos).
 type Categoria = { id: string; nombre: string; tipo: string };
+type Area = { id: string; nombre: string };
 
 type FilaProcesada = {
   tipo: "INGRESO" | "EGRESO" | null;
@@ -20,6 +21,8 @@ type FilaProcesada = {
   fecha: string | null;
   categoriaNombre: string;
   categoriaId: string | null;
+  areaNombre: string;
+  areaId: string | null;
   descripcion: string;
   metodoPago: string;
   valida: boolean;
@@ -36,7 +39,7 @@ function normalizar(texto: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
+function parsearFila(row: any, categorias: Categoria[], areas: Area[]): FilaProcesada {
   const errores: string[] = [];
 
   // Acepta encabezados en español con distintas variantes
@@ -44,6 +47,7 @@ function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
   const rawMonto = row.Monto ?? row.monto ?? row.MONTO ?? row.Importe;
   const rawFecha = row.Fecha ?? row.fecha ?? row.FECHA;
   const rawCategoria = row.Categoria ?? row.categoria ?? row["Categoría"] ?? "";
+  const rawArea = row.Area ?? row.area ?? row["Área"] ?? "";
   const rawDescripcion = row.Descripcion ?? row.descripcion ?? row["Descripción"] ?? "";
   const rawMetodo = row.MetodoPago ?? row["Método de pago"] ?? row.metodoPago ?? "Efectivo";
 
@@ -73,6 +77,12 @@ function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
   const categoriaEncontrada = categoriasDelTipo.find((c) => normalizar(c.nombre) === normalizar(rawCategoria));
   if (!categoriaEncontrada) errores.push(`Categoría "${rawCategoria}" no coincide con ninguna configurada`);
 
+  // El área es una columna opcional: si la fila no la trae, se importa sin
+  // área (a diferencia de la categoría, que sí es obligatoria). Si la trae
+  // pero no coincide con ninguna configurada, se marca como fila inválida.
+  const areaEncontrada = rawArea ? areas.find((a) => normalizar(a.nombre) === normalizar(rawArea)) : undefined;
+  if (rawArea && !areaEncontrada) errores.push(`Área "${rawArea}" no coincide con ninguna configurada`);
+
   if (!rawDescripcion) errores.push("Falta descripción");
 
   const metodoMap: Record<string, string> = {
@@ -90,6 +100,8 @@ function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
     fecha: fechaISO,
     categoriaNombre: rawCategoria,
     categoriaId: categoriaEncontrada?.id ?? null,
+    areaNombre: rawArea,
+    areaId: areaEncontrada?.id ?? null,
     descripcion: String(rawDescripcion),
     metodoPago,
     valida: errores.length === 0,
@@ -97,7 +109,7 @@ function parsearFila(row: any, categorias: Categoria[]): FilaProcesada {
   };
 }
 
-export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
+export function ImportarExcel({ categorias, areas }: { categorias: Categoria[]; areas: Area[] }) {
   const router = useRouter();
   const [filas, setFilas] = useState<FilaProcesada[]>([]);
   const [enviando, setEnviando] = useState(false);
@@ -114,7 +126,7 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
       const workbook = XLSX.read(data, { type: "binary", cellDates: true });
       const hoja = workbook.Sheets[workbook.SheetNames[0]];
       const filasCrudas = XLSX.utils.sheet_to_json(hoja);
-      const procesadas = filasCrudas.map((f) => parsearFila(f, categorias));
+      const procesadas = filasCrudas.map((f) => parsearFila(f, categorias, areas));
       setFilas(procesadas);
     };
     reader.readAsBinaryString(file);
@@ -135,6 +147,7 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
             monto: f.monto,
             fecha: f.fecha,
             categoriaId: f.categoriaId,
+            areaId: f.areaId,
             descripcion: f.descripcion,
             metodoPago: f.metodoPago,
           })),
@@ -161,7 +174,7 @@ export function ImportarExcel({ categorias }: { categorias: Categoria[] }) {
               {nombreArchivo ?? "Haz clic para subir tu archivo .xlsx de ventas históricas"}
             </span>
             <span className="text-xs text-muted-foreground">
-              Columnas esperadas: Fecha, Tipo, Categoria, Monto, Descripcion, MetodoPago (opcional)
+              Columnas esperadas: Fecha, Tipo, Categoria, Monto, Descripcion, MetodoPago (opcional), Area (opcional)
             </span>
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
           </label>

@@ -14,13 +14,13 @@ const esquemaItem = z.object({
 });
 
 const esquemaSolicitud = z.object({
-  area: z.string().min(1, "Selecciona un área"),
+  areaId: z.string().min(1, "Selecciona un área"),
   justificacion: z.string().min(5, "Explica brevemente el motivo de la compra"),
   items: z.array(esquemaItem).min(1, "Agrega al menos un ítem"),
 });
 
 export async function crearSolicitudCompra(input: {
-  area: string;
+  areaId: string;
   justificacion: string;
   items: { descripcion: string; cantidad: number; precioEstimado: number }[];
 }) {
@@ -33,7 +33,7 @@ export async function crearSolicitudCompra(input: {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
-  const { area, justificacion, items } = parsed.data;
+  const { areaId, justificacion, items } = parsed.data;
   const montoEstimado = items.reduce((sum, i) => sum + i.cantidad * i.precioEstimado, 0);
 
   const total = await prisma.solicitudCompra.count();
@@ -41,7 +41,7 @@ export async function crearSolicitudCompra(input: {
   await prisma.solicitudCompra.create({
     data: {
       codigo: generarCodigoSolicitud(total + 1),
-      area,
+      areaId,
       justificacion,
       montoEstimado,
       solicitanteId: session.user.id,

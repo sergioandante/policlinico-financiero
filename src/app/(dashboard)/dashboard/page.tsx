@@ -5,11 +5,12 @@ import { obtenerResumenDashboard, obtenerPresupuestosActivos } from "@/lib/consu
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { IngresosEgresosChart } from "@/components/dashboard/ingresos-egresos-chart";
 import { FlujoCajaChart } from "@/components/dashboard/flujo-caja-chart";
+import { CajaBalanceCard } from "@/components/cajas/caja-balance-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { formatearMoneda, formatearFecha } from "@/lib/utils";
-import { DollarSign, TrendingDown, TrendingUp, Wallet2, AlertTriangle } from "lucide-react";
+import { DollarSign, TrendingDown, TrendingUp, Wallet2, AlertTriangle, CalendarClock } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -40,6 +41,42 @@ export default async function DashboardPage() {
           tono={resumen.utilidadMes >= 0 ? "ingreso" : "egreso"}
         />
         <KpiCard titulo="Saldo total en cajas" valor={resumen.saldoCajas} icon={Wallet2} />
+      </div>
+
+      {/* Resumen de cajas + reporte del día — lo primero que la administradora quiere ver al entrar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {resumen.cajas.map((c) => (
+            <CajaBalanceCard key={c.id} nombre={c.nombre} tipo={c.tipo} saldo={c.saldo} />
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-brand-600" />
+              Reporte del día
+            </CardTitle>
+            <CardDescription>{formatearFecha(new Date())}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Ingresos de hoy</span>
+              <span className="font-tabular font-medium text-ingreso">{formatearMoneda(resumen.reporteHoy.ingresos)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Egresos de hoy</span>
+              <span className="font-tabular font-medium text-egreso">{formatearMoneda(resumen.reporteHoy.egresos)}</span>
+            </div>
+            <div className="flex justify-between border-t border-border pt-3">
+              <span className="font-medium">Neto de hoy</span>
+              <span
+                className={`font-tabular font-bold ${resumen.reporteHoy.neto >= 0 ? "text-ingreso" : "text-egreso"}`}
+              >
+                {formatearMoneda(resumen.reporteHoy.neto)}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -106,7 +143,7 @@ export default async function DashboardPage() {
               return (
                 <div key={p.id} className="space-y-1.5">
                   <div className="flex justify-between text-sm">
-                    <span className="font-medium">{p.categoria}</span>
+                    <span className="font-medium">{p.area}</span>
                     <Badge variant={sobrepasado ? "destructive" : enAlerta ? "warning" : "secondary"}>
                       {p.porcentaje.toFixed(0)}%
                     </Badge>

@@ -4,27 +4,43 @@ import { redirect } from "next/navigation";
 import { puede } from "@/lib/permisos";
 import { obtenerTransacciones, obtenerCategorias } from "@/lib/consultas/transacciones";
 import { obtenerCajas } from "@/lib/consultas/cajas";
+import { obtenerAreasActivas } from "@/lib/consultas/areas";
 import { TransaccionesTable } from "@/components/transacciones/transacciones-table";
 import { TransaccionDialog } from "@/components/transacciones/transaccion-dialog";
+import { ExportarExcelButton } from "@/components/shared/exportar-excel-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from "lucide-react";
+import { formatearFecha } from "@/lib/utils";
 
 export default async function TransaccionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tipo?: string; categoriaId?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{ tipo?: string; categoriaId?: string; areaId?: string; desde?: string; hasta?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "verTransacciones")) redirect("/dashboard");
 
   const filtros = await searchParams;
-  const [transacciones, categorias, cajas] = await Promise.all([
+  const [transacciones, categorias, cajas, areas] = await Promise.all([
     obtenerTransacciones(filtros),
     obtenerCategorias(),
     obtenerCajas(),
+    obtenerAreasActivas(),
   ]);
   const puedeCrear = puede(session.user.rol, "crearTransacciones");
+  const puedeExportar = puede(session.user.rol, "exportarExcel");
+
+  const filasExportar = transacciones.map((t) => ({
+    Fecha: formatearFecha(t.fecha),
+    Tipo: t.tipo === "INGRESO" ? "Ingreso" : "Egreso",
+    Categoria: t.categoria,
+    Area: t.area ?? "",
+    Monto: t.monto,
+    Descripcion: t.descripcion,
+    MetodoPago: t.metodoPago,
+    RegistradoPor: t.usuario,
+  }));
 
   return (
     <div className="space-y-6">
@@ -33,17 +49,22 @@ export default async function TransaccionesPage({
           <h1 className="font-display text-2xl font-bold text-ink">Transacciones Financieras</h1>
           <p className="text-sm text-muted-foreground">Ingresos y egresos detallados del policlínico.</p>
         </div>
-        {puedeCrear && (
-          <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/transacciones/importar">
-                <FileSpreadsheet className="w-4 h-4" />
-                Importar Excel
-              </Link>
-            </Button>
-            <TransaccionDialog categorias={categorias} cajas={cajas} />
-          </div>
-        )}
+        <div className="flex gap-2">
+          {puedeExportar && (
+            <ExportarExcelButton data={filasExportar} nombreArchivo="transacciones" hojaNombre="Transacciones" />
+          )}
+          {puedeCrear && (
+            <>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/transacciones/importar">
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Importar Excel
+                </Link>
+              </Button>
+              <TransaccionDialog categorias={categorias} cajas={cajas} areas={areas} />
+            </>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -67,6 +88,17 @@ export default async function TransaccionesPage({
                 {categorias.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Área</label>
+              <select name="areaId" defaultValue={filtros.areaId ?? ""} className="h-9 rounded-md border border-input bg-white px-3 text-sm">
+                <option value="">Todas</option>
+                {areas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
                   </option>
                 ))}
               </select>

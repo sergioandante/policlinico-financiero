@@ -24,8 +24,17 @@ const initialState = { ok: false, error: null as string | null };
 // válidos ("INGRESO"/"EGRESO") ya se garantizan en el seed y en las acciones.
 type Categoria = { id: string; nombre: string; tipo: string; parentId: string | null };
 type Caja = { id: string; nombre: string };
+type Area = { id: string; nombre: string };
 
-export function TransaccionDialog({ categorias, cajas }: { categorias: Categoria[]; cajas: Caja[] }) {
+export function TransaccionDialog({
+  categorias,
+  cajas,
+  areas,
+}: {
+  categorias: Categoria[];
+  cajas: Caja[];
+  areas: Area[];
+}) {
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<"INGRESO" | "EGRESO">("INGRESO");
   const [state, formAction, pending] = useActionState(crearTransaccion, initialState);
@@ -76,21 +85,38 @@ export function TransaccionDialog({ categorias, cajas }: { categorias: Categoria
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Categoría</Label>
-            <Select name="categoriaId" required>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                {categoriasFiltradas.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.parentId ? "— " : ""}
-                    {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Categoría</Label>
+              <Select name="categoriaId" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoriasFiltradas.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.parentId ? "— " : ""}
+                      {c.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Área</Label>
+              <Select name="areaId" required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona área" />
+                </SelectTrigger>
+                <SelectContent>
+                  {areas.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

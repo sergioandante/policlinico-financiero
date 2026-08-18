@@ -20,13 +20,12 @@ import { crearSolicitudCompra } from "@/lib/actions/compras";
 import { PlusCircle, Trash2 } from "lucide-react";
 import { formatearMoneda } from "@/lib/utils";
 
-const AREAS = ["Logística", "Marketing", "Administración", "Recepción", "Mantenimiento"];
-
+type Area = { id: string; nombre: string };
 type Item = { descripcion: string; cantidad: string; precioEstimado: string };
 
-export function SolicitudDialog() {
+export function SolicitudDialog({ areas }: { areas: Area[] }) {
   const [open, setOpen] = useState(false);
-  const [area, setArea] = useState(AREAS[0]);
+  const [areaId, setAreaId] = useState(areas[0]?.id ?? "");
   const [justificacion, setJustificacion] = useState("");
   const [items, setItems] = useState<Item[]>([{ descripcion: "", cantidad: "1", precioEstimado: "" }]);
   const [pending, startTransition] = useTransition();
@@ -46,7 +45,7 @@ export function SolicitudDialog() {
   }
 
   function limpiar() {
-    setArea(AREAS[0]);
+    setAreaId(areas[0]?.id ?? "");
     setJustificacion("");
     setItems([{ descripcion: "", cantidad: "1", precioEstimado: "" }]);
   }
@@ -55,7 +54,7 @@ export function SolicitudDialog() {
     e.preventDefault();
     startTransition(async () => {
       const res = await crearSolicitudCompra({
-        area,
+        areaId,
         justificacion,
         items: items
           .filter((i) => i.descripcion.trim())
@@ -92,14 +91,14 @@ export function SolicitudDialog() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Área solicitante</Label>
-            <Select value={area} onValueChange={setArea}>
+            <Select value={areaId} onValueChange={setAreaId}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Selecciona área" />
               </SelectTrigger>
               <SelectContent>
-                {AREAS.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {a}
+                {areas.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.nombre}
                   </SelectItem>
                 ))}
               </SelectContent>

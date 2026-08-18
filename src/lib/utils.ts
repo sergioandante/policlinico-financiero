@@ -37,3 +37,7 @@ export function generarCodigoSolicitud(numero: number): string {
   const anio = new Date().getFullYear();
   return `SC-${anio}-${String(numero).padStart(4, "0")}`;
 }
+
+export function generarCodigoInventario(numero: number): string {
+  return `INV-${String(numero).padStart(4, "0")}`;
+}
