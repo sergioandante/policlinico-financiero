@@ -13,6 +13,7 @@ export async function obtenerMetricasSalud(usuarioId: string) {
     id: m.id,
     fecha: m.fecha,
     fechaCorta: format(m.fecha, "dd/MM"),
+    fechaISO: format(m.fecha, "yyyy-MM-dd"),
     pesoKg: Number(m.pesoKg),
     alturaCm: Number(m.alturaCm),
     imc: Number(m.imc),

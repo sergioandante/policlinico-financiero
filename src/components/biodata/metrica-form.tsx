@@ -32,7 +32,7 @@ export function MetricaForm({ alturaSugerida }: { alturaSugerida?: number }) {
         </div>
         <div className="space-y-1.5">
           <Label>Peso (kg)</Label>
-          <Input name="pesoKg" type="number" step="0.1" min="1" required placeholder="70.5" />
+          <Input name="pesoKg" type="number" step="0.01" min="1" required placeholder="70.55" />
         </div>
       </div>
 
@@ -41,7 +41,7 @@ export function MetricaForm({ alturaSugerida }: { alturaSugerida?: number }) {
         <Input
           name="alturaCm"
           type="number"
-          step="0.1"
+          step="0.01"
           min="1"
           required
           defaultValue={alturaSugerida}

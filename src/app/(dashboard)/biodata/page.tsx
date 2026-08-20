@@ -4,6 +4,7 @@ import { puede } from "@/lib/permisos";
 import { obtenerMetricasSalud, obtenerUltimaMetrica } from "@/lib/consultas/biodata";
 import { PesoChart } from "@/components/biodata/peso-chart";
 import { MetricaForm } from "@/components/biodata/metrica-form";
+import { MetricaActions } from "@/components/biodata/metrica-actions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { formatearFecha } from "@/lib/utils";
@@ -112,12 +113,13 @@ export default async function BiodataPage() {
                 <TableHead>IMC</TableHead>
                 <TableHead>Presión</TableHead>
                 <TableHead>Notas</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {historialReciente.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
                     Aún no tienes registros.
                   </TableCell>
                 </TableRow>
@@ -125,12 +127,25 @@ export default async function BiodataPage() {
               {historialReciente.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>{formatearFecha(m.fecha)}</TableCell>
-                  <TableCell className="font-tabular">{m.pesoKg.toFixed(1)} kg</TableCell>
+                  <TableCell className="font-tabular">{m.pesoKg.toFixed(2)} kg</TableCell>
                   <TableCell className="font-tabular">{m.imc.toFixed(1)}</TableCell>
                   <TableCell className="font-tabular">
                     {m.presionSistolica}/{m.presionDiastolica}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{m.notas ?? "—"}</TableCell>
+                  <TableCell>
+                    <MetricaActions
+                      metrica={{
+                        id: m.id,
+                        fechaISO: m.fechaISO,
+                        pesoKg: m.pesoKg,
+                        alturaCm: m.alturaCm,
+                        presionSistolica: m.presionSistolica,
+                        presionDiastolica: m.presionDiastolica,
+                        notas: m.notas,
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

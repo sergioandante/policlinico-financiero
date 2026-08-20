@@ -53,3 +53,77 @@ export async function registrarMetricaSalud(_prevState: any, formData: FormData)
   revalidatePath("/biodata");
   return { ok: true, error: null };
 }
+
+const esquemaMetricaEdicion = esquemaMetrica.extend({
+  id: z.string().min(1),
+});
+
+// Edita una métrica existente. El where siempre incluye usuarioId de la
+// sesión (updateMany en vez de update) para que un doctor jamás pueda
+// editar el registro de otro, sin importar qué id le pasen al formulario.
+export async function actualizarMetricaSalud(_prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "registrarBiodata")) {
+    return { ok: false, error: "No tienes permiso para editar biodata." };
+  }
+
+  const parsed = esquemaMetricaEdicion.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const { id, fecha, pesoKg, alturaCm, presionSistolica, presionDiastolica, notas } = parsed.data;
+
+  const alturaM = alturaCm / 100;
+  const imc = pesoKg / (alturaM * alturaM);
+
+  try {
+    const { count } = await prisma.metricaSalud.updateMany({
+      where: { id, usuarioId: session.user.id },
+      data: {
+        fecha: new Date(fecha),
+        pesoKg,
+        alturaCm,
+        imc,
+        presionSistolica,
+        presionDiastolica,
+        notas: notas || null,
+      },
+    });
+    if (count === 0) {
+      return { ok: false, error: "Registro no encontrado." };
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.message ?? "Error al actualizar la métrica" };
+  }
+
+  revalidatePath("/biodata");
+  return { ok: true, error: null };
+}
+
+// Elimina una métrica existente. Mismo criterio de ownership que la edición:
+// deleteMany con usuarioId de la sesión en el where.
+export async function eliminarMetricaSalud(_prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "registrarBiodata")) {
+    return { ok: false, error: "No tienes permiso para eliminar biodata." };
+  }
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) {
+    return { ok: false, error: "Falta el identificador del registro." };
+  }
+
+  try {
+    const { count } = await prisma.metricaSalud.deleteMany({
+      where: { id, usuarioId: session.user.id },
+    });
+    if (count === 0) {
+      return { ok: false, error: "Registro no encontrado." };
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.message ?? "Error al eliminar la métrica" };
+  }
+
+  revalidatePath("/biodata");
+  return { ok: true, error: null };
+}
