@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
 
 const esquema = z.object({
-  categoriaId: z.string().min(1),
+  areaId: z.string().min(1),
   nombre: z.string().min(3),
   montoAsignado: z.coerce.number().positive(),
   periodoMes: z.coerce.number().int().min(1).max(12),
@@ -29,7 +29,7 @@ export async function crearPresupuesto(_prevState: any, formData: FormData) {
   try {
     await prisma.presupuesto.create({ data: parsed.data });
   } catch (e: any) {
-    return { ok: false, error: "Ya existe un presupuesto para esa categoría en ese periodo." };
+    return { ok: false, error: "Ya existe un presupuesto para esa área en ese periodo." };
   }
 
   revalidatePath("/presupuestos");

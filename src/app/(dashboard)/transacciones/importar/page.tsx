@@ -2,13 +2,14 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { puede } from "@/lib/permisos";
 import { obtenerCategorias } from "@/lib/consultas/transacciones";
+import { obtenerAreasActivas } from "@/lib/consultas/areas";
 import { ImportarExcel } from "@/components/transacciones/importar-excel";
 
 export default async function ImportarPage() {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "importarExcel")) redirect("/transacciones");
 
-  const categorias = await obtenerCategorias();
+  const [categorias, areas] = await Promise.all([obtenerCategorias(), obtenerAreasActivas()]);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -20,7 +21,7 @@ export default async function ImportarPage() {
         </p>
       </div>
 
-      <ImportarExcel categorias={categorias} />
+      <ImportarExcel categorias={categorias} areas={areas} />
     </div>
   );
 }

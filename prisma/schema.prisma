@@ -1,13 +1,8 @@
 // ============================================================================
-// POLICLÍNICO - MÓDULO FINANCIERO Y ADMINISTRATIVO
-// Prototipo: SQLite (fácil de migrar a PostgreSQL/Supabase después,
-// solo cambia "provider" y "url" abajo).
-//
-// NOTA: el conector de SQLite de Prisma NO soporta `enum` en el datamodel,
-// por eso los campos que antes eran enum ahora son String. La validación de
-// los valores permitidos se hace en la capa de aplicación con zod (ver
-// src/lib/actions/*.ts), tal como ya se validaba antes de convertir a
-// String. Al migrar a PostgreSQL basta con volver a declarar los enums.
+// POLICLÍNICO SAN DAMIÁN - MÓDULO FINANCIERO Y ADMINISTRATIVO
+// PostgreSQL (Supabase). Los campos que en otros proyectos serían `enum`
+// aquí son String — la validación de los valores permitidos vive en la
+// capa de aplicación con zod (ver src/lib/actions/*.ts).
 // ============================================================================
 
 generator client {
@@ -22,7 +17,7 @@ datasource db {
 
 // ---------------------------------------------------------------------------
 // USUARIOS Y ROLES
-// Rol válidos: ADMINISTRADOR | GERENTE | LOGISTICA | CONTADOR | DOCTOR
+// Rol válidos: ADMINISTRADOR | GERENTE | LOGISTICA | CONTADOR
 // ---------------------------------------------------------------------------
 
 model Usuario {
@@ -39,51 +34,49 @@ model Usuario {
   solicitudesCreadas SolicitudCompra[]      @relation("solicitante")
   solicitudesResueltas SolicitudCompra[]    @relation("aprobador")
   movimientosInventario MovimientoInventario[]
-  metricasSalud      MetricaSalud[]
 
   @@map("usuarios")
 }
 
 // ---------------------------------------------------------------------------
-// BIODATA DEL DOCTOR (Módulo Doctor/Biodata)
-// Registro diario de métricas de salud, vinculado 1:N al Usuario (rol DOCTOR).
-// Solo el propio doctor puede leer/escribir sus filas (ver src/lib/permisos.ts
-// y las consultas/acciones, que siempre filtran por usuarioId de la sesión).
+// ÁREAS (departamentos clínicos y administrativos del policlínico)
+// Nivel al que se asigna presupuesto y se mide rentabilidad (ingreso - gasto).
+// tipo válidos: CLINICA | ADMINISTRATIVA
 // ---------------------------------------------------------------------------
 
-model MetricaSalud {
-  id                String   @id @default(cuid())
-  usuarioId         String
-  usuario           Usuario  @relation(fields: [usuarioId], references: [id])
-  fecha             DateTime @default(now())
-  pesoKg            Decimal
-  alturaCm          Decimal
-  imc               Decimal // calculado en el server action: pesoKg / (alturaCm/100)^2
-  presionSistolica  Int
-  presionDiastolica Int
-  notas             String?
-  createdAt         DateTime @default(now())
+model Area {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  tipo      String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  @@index([usuarioId, fecha])
-  @@map("metricas_salud")
+  transacciones     Transaccion[]
+  presupuestos      Presupuesto[]
+  solicitudesCompra SolicitudCompra[]
+  metas             MetaFinanciera[]
+
+  @@map("areas")
 }
 
 // ---------------------------------------------------------------------------
 // CATEGORÍAS (configurables, con subcategorías vía self-relation)
 // tipo válidos: INGRESO | EGRESO
+// esFijo: para egresos, distingue gasto Fijo (planilla, alquiler, servicios)
+// de Variable (insumos, marketing puntual) — usado en Proyecciones.
 // ---------------------------------------------------------------------------
 
 model Categoria {
   id       String     @id @default(cuid())
   nombre   String
   tipo     String
+  esFijo   Boolean    @default(false)
   activo   Boolean    @default(true)
   parentId String?
   parent   Categoria? @relation("subcategorias", fields: [parentId], references: [id])
   hijos    Categoria[] @relation("subcategorias")
 
   transacciones Transaccion[]
-  presupuestos  Presupuesto[]
 
   @@map("categorias")
 }
@@ -147,6 +140,8 @@ model Transaccion {
   fecha         DateTime
   categoriaId   String
   categoria     Categoria @relation(fields: [categoriaId], references: [id])
+  areaId        String? // área que generó el ingreso o incurrió en el gasto
+  area          Area?    @relation(fields: [areaId], references: [id])
   descripcion   String
   metodoPago    String   @default("EFECTIVO")
   comprobante   String? // número de boleta/factura
@@ -161,26 +156,50 @@ model Transaccion {
 
   @@index([fecha])
   @@index([tipo, categoriaId])
+  @@index([areaId])
   @@map("transacciones")
 }
 
 // ---------------------------------------------------------------------------
-// PRESUPUESTOS
+// PRESUPUESTOS — asignados por Área (no por categoría): es el nivel al que
+// la administradora decide "cuánto le doy a Cardiología este mes".
 // ---------------------------------------------------------------------------
 
 model Presupuesto {
   id            String   @id @default(cuid())
-  categoriaId   String
-  categoria     Categoria @relation(fields: [categoriaId], references: [id])
-  nombre        String // ej: "Marketing - Julio 2026"
+  areaId        String
+  area          Area     @relation(fields: [areaId], references: [id])
+  nombre        String // ej: "Cardiología - Agosto 2026"
   montoAsignado Decimal
   periodoMes    Int // 1-12
   periodoAnio   Int
   umbralAlerta  Int      @default(80) // % para disparar alerta amarilla
   createdAt     DateTime @default(now())
 
-  @@unique([categoriaId, periodoMes, periodoAnio])
+  @@unique([areaId, periodoMes, periodoAnio])
   @@map("presupuestos")
+}
+
+// ---------------------------------------------------------------------------
+// METAS ECONÓMICAS
+// tipo válidos: INGRESO_MENSUAL | AHORRO | REDUCCION_GASTO
+// Si areaId es null, la meta es a nivel de todo el policlínico.
+// ---------------------------------------------------------------------------
+
+model MetaFinanciera {
+  id            String   @id @default(cuid())
+  nombre        String
+  tipo          String
+  montoObjetivo Decimal
+  areaId        String?
+  area          Area?    @relation(fields: [areaId], references: [id])
+  periodoMes    Int
+  periodoAnio   Int
+  notas         String?
+  createdAt     DateTime @default(now())
+
+  @@index([periodoMes, periodoAnio])
+  @@map("metas_financieras")
 }
 
 // ---------------------------------------------------------------------------
@@ -189,7 +208,8 @@ model Presupuesto {
 
 model InventarioItem {
   id               String   @id @default(cuid())
-  nombre           String
+  codigo           String   @unique // ej: "INV-0001", visible para el staff
+  nombre           String // Concepto
   categoria        String // ej: "Vacunas", "Insumos médicos", "Suplementos"
   unidadMedida     String   @default("unidad")
   stockActual      Int      @default(0)
@@ -226,7 +246,8 @@ model MovimientoInventario {
 model SolicitudCompra {
   id               String   @id @default(cuid())
   codigo           String   @unique // ej: SC-2026-0001
-  area             String // Logística, Marketing, Administración...
+  areaId           String
+  area             Area     @relation(fields: [areaId], references: [id])
   justificacion    String
   montoEstimado    Decimal
   estado           String   @default("PENDIENTE")

@@ -11,7 +11,7 @@ const esquema = z.object({
   nombre: z.string().min(3),
   email: z.string().email(),
   password: z.string().min(6, "Mínimo 6 caracteres"),
-  rol: z.enum(["ADMINISTRADOR", "GERENTE", "LOGISTICA", "CONTADOR", "DOCTOR"]),
+  rol: z.enum(["ADMINISTRADOR", "GERENTE", "LOGISTICA", "CONTADOR"]),
 });
 
 export async function crearUsuario(_prevState: any, formData: FormData) {

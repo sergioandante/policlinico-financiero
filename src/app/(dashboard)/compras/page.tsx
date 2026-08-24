@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { puede } from "@/lib/permisos";
 import { obtenerSolicitudesCompra } from "@/lib/consultas/compras";
+import { obtenerAreasActivas } from "@/lib/consultas/areas";
 import { SolicitudDialog } from "@/components/compras/solicitud-dialog";
 import { SolicitudesTable } from "@/components/compras/solicitudes-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +11,13 @@ import { Button } from "@/components/ui/button";
 export default async function ComprasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string; area?: string }>;
+  searchParams: Promise<{ estado?: string; areaId?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "verCompras")) redirect("/dashboard");
 
   const filtros = await searchParams;
-  const solicitudes = await obtenerSolicitudesCompra(filtros);
+  const [solicitudes, areas] = await Promise.all([obtenerSolicitudesCompra(filtros), obtenerAreasActivas()]);
   const puedeCrear = puede(session.user.rol, "crearSolicitudCompra");
   const puedeAprobar = puede(session.user.rol, "aprobarSolicitudCompra");
 
@@ -31,7 +32,7 @@ export default async function ComprasPage({
             {pendientes > 0 ? `${pendientes} solicitud(es) pendientes de resolución.` : "Todo al día."}
           </p>
         </div>
-        {puedeCrear && <SolicitudDialog />}
+        {puedeCrear && <SolicitudDialog areas={areas} />}
       </div>
 
       <Card>
@@ -48,6 +49,17 @@ export default async function ComprasPage({
                 <option value="APROBADA">Aprobada</option>
                 <option value="RECHAZADA">Rechazada</option>
                 <option value="COMPLETADA">Completada</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Área</label>
+              <select name="areaId" defaultValue={filtros.areaId ?? ""} className="h-9 rounded-md border border-input bg-white px-3 text-sm">
+                <option value="">Todas</option>
+                {areas.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
               </select>
             </div>
             <Button type="submit" variant="outline" size="sm">

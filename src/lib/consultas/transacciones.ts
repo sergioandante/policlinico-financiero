@@ -11,12 +11,14 @@ export async function obtenerCategorias(tipo?: "INGRESO" | "EGRESO") {
 export async function obtenerTransacciones(filtros: {
   tipo?: string;
   categoriaId?: string;
+  areaId?: string;
   desde?: string;
   hasta?: string;
 }) {
   const where: any = {};
   if (filtros.tipo) where.tipo = filtros.tipo;
   if (filtros.categoriaId) where.categoriaId = filtros.categoriaId;
+  if (filtros.areaId) where.areaId = filtros.areaId;
   if (filtros.desde || filtros.hasta) {
     where.fecha = {};
     if (filtros.desde) where.fecha.gte = new Date(filtros.desde);
@@ -25,7 +27,7 @@ export async function obtenerTransacciones(filtros: {
 
   const transacciones = await prisma.transaccion.findMany({
     where,
-    include: { categoria: true, usuario: true },
+    include: { categoria: true, usuario: true, area: true },
     orderBy: { fecha: "desc" },
     take: 300,
   });
@@ -36,6 +38,8 @@ export async function obtenerTransacciones(filtros: {
     monto: Number(t.monto),
     fecha: t.fecha,
     categoria: t.categoria.nombre,
+    esFijo: t.categoria.esFijo,
+    area: t.area?.nombre ?? null,
     descripcion: t.descripcion,
     metodoPago: t.metodoPago,
     origen: t.origen,

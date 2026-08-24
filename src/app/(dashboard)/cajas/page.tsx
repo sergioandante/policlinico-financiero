@@ -6,9 +6,11 @@ import { CajaBalanceCard } from "@/components/cajas/caja-balance-card";
 import { MovimientoDialog } from "@/components/cajas/movimiento-dialog";
 import { TraspasoDialog } from "@/components/cajas/traspaso-dialog";
 import { MovimientosTable } from "@/components/cajas/movimientos-table";
+import { ExportarExcelButton } from "@/components/shared/exportar-excel-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatearFechaHora } from "@/lib/utils";
 
 export default async function CajasPage({
   searchParams,
@@ -21,6 +23,19 @@ export default async function CajasPage({
   const filtros = await searchParams;
   const [cajas, movimientos] = await Promise.all([obtenerCajas(), obtenerMovimientos(filtros)]);
   const puedeRegistrar = puede(session.user.rol, "registrarMovimientoCaja");
+  const puedeExportar = puede(session.user.rol, "exportarExcel");
+
+  const filasExportar = movimientos.map((m) => ({
+    Fecha: formatearFechaHora(m.fecha),
+    Caja: m.caja,
+    CajaDestino: m.cajaDestino ?? "",
+    Tipo: m.tipo,
+    Monto: m.monto,
+    SaldoAnterior: m.saldoAnterior,
+    SaldoNuevo: m.saldoNuevo,
+    Descripcion: m.descripcion,
+    Usuario: m.usuario,
+  }));
 
   return (
     <div className="space-y-6">
@@ -29,12 +44,17 @@ export default async function CajasPage({
           <h1 className="font-display text-2xl font-bold text-ink">Control de Cajas</h1>
           <p className="text-sm text-muted-foreground">Caja Chica y Caja Grande, con saldo en tiempo real.</p>
         </div>
-        {puedeRegistrar && (
-          <div className="flex gap-2">
-            <TraspasoDialog cajas={cajas} />
-            <MovimientoDialog cajas={cajas} />
-          </div>
-        )}
+        <div className="flex gap-2">
+          {puedeExportar && (
+            <ExportarExcelButton data={filasExportar} nombreArchivo="movimientos-caja" hojaNombre="Movimientos" />
+          )}
+          {puedeRegistrar && (
+            <>
+              <TraspasoDialog cajas={cajas} />
+              <MovimientoDialog cajas={cajas} />
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

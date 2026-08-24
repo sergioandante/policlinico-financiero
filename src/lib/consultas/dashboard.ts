@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
+import { startOfMonth, endOfMonth, startOfDay, endOfDay, subMonths, format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export async function obtenerResumenDashboard() {
   const ahora = new Date();
   const inicioMes = startOfMonth(ahora);
   const finMes = endOfMonth(ahora);
+  const inicioHoy = startOfDay(ahora);
+  const finHoy = endOfDay(ahora);
 
-  const [ingresosMesAgg, egresosMesAgg, cajas] = await Promise.all([
+  const [ingresosMesAgg, egresosMesAgg, ingresosHoyAgg, egresosHoyAgg, cajas] = await Promise.all([
     prisma.transaccion.aggregate({
       _sum: { monto: true },
       where: { tipo: "INGRESO", fecha: { gte: inicioMes, lte: finMes } },
@@ -16,11 +18,21 @@ export async function obtenerResumenDashboard() {
       _sum: { monto: true },
       where: { tipo: "EGRESO", fecha: { gte: inicioMes, lte: finMes } },
     }),
+    prisma.transaccion.aggregate({
+      _sum: { monto: true },
+      where: { tipo: "INGRESO", fecha: { gte: inicioHoy, lte: finHoy } },
+    }),
+    prisma.transaccion.aggregate({
+      _sum: { monto: true },
+      where: { tipo: "EGRESO", fecha: { gte: inicioHoy, lte: finHoy } },
+    }),
     prisma.caja.findMany(),
   ]);
 
   const ingresosMes = Number(ingresosMesAgg._sum.monto ?? 0);
   const egresosMes = Number(egresosMesAgg._sum.monto ?? 0);
+  const ingresosHoy = Number(ingresosHoyAgg._sum.monto ?? 0);
+  const egresosHoy = Number(egresosHoyAgg._sum.monto ?? 0);
   const saldoCajas = cajas.reduce((acc, c) => acc + Number(c.saldoActual), 0);
 
   // Serie mensual (últimos 6 meses) para el gráfico comparativo
@@ -95,6 +107,11 @@ export async function obtenerResumenDashboard() {
     margenMes,
     saldoCajas,
     cajas: cajas.map((c) => ({ id: c.id, nombre: c.nombre, tipo: c.tipo, saldo: Number(c.saldoActual) })),
+    reporteHoy: {
+      ingresos: ingresosHoy,
+      egresos: egresosHoy,
+      neto: ingresosHoy - egresosHoy,
+    },
     dataMensual,
     flujoAcumulado,
     anomalias,
@@ -105,7 +122,7 @@ export async function obtenerPresupuestosActivos() {
   const ahora = new Date();
   const presupuestos = await prisma.presupuesto.findMany({
     where: { periodoMes: ahora.getMonth() + 1, periodoAnio: ahora.getFullYear() },
-    include: { categoria: true },
+    include: { area: true },
   });
 
   const inicioMes = startOfMonth(ahora);
@@ -115,14 +132,14 @@ export async function obtenerPresupuestosActivos() {
   for (const p of presupuestos) {
     const gastado = await prisma.transaccion.aggregate({
       _sum: { monto: true },
-      where: { categoriaId: p.categoriaId, tipo: "EGRESO", fecha: { gte: inicioMes, lte: finMes } },
+      where: { areaId: p.areaId, tipo: "EGRESO", fecha: { gte: inicioMes, lte: finMes } },
     });
     const montoGastado = Number(gastado._sum.monto ?? 0);
     const montoAsignado = Number(p.montoAsignado);
     resultado.push({
       id: p.id,
       nombre: p.nombre,
-      categoria: p.categoria.nombre,
+      area: p.area.nombre,
       montoAsignado,
       montoGastado,
       porcentaje: montoAsignado > 0 ? (montoGastado / montoAsignado) * 100 : 0,

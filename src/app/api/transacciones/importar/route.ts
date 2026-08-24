@@ -10,6 +10,7 @@ const filaSchema = z.object({
   monto: z.number().positive(),
   fecha: z.string(), // ISO
   categoriaId: z.string(),
+  areaId: z.string().nullable().optional(),
   descripcion: z.string().min(1),
   metodoPago: z.enum(["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE_PLIN", "OTRO"]).default("EFECTIVO"),
 });
@@ -31,6 +32,14 @@ export async function POST(req: NextRequest) {
   const categoriasValidas = await prisma.categoria.findMany({ where: { id: { in: categoriaIds } } });
   if (categoriasValidas.length !== categoriaIds.length) {
     return NextResponse.json({ error: "Alguna categoría enviada no existe" }, { status: 400 });
+  }
+
+  const areaIds = [...new Set(parsed.data.map((f) => f.areaId).filter((id): id is string => !!id))];
+  if (areaIds.length > 0) {
+    const areasValidas = await prisma.area.findMany({ where: { id: { in: areaIds } } });
+    if (areasValidas.length !== areaIds.length) {
+      return NextResponse.json({ error: "Alguna área enviada no existe" }, { status: 400 });
+    }
   }
 
   await crearTransaccionesEnLote(

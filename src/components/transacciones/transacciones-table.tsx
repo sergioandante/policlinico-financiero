@@ -8,6 +8,8 @@ type Transaccion = {
   monto: number;
   fecha: Date;
   categoria: string;
+  esFijo: boolean;
+  area: string | null;
   descripcion: string;
   metodoPago: string;
   origen: string;
@@ -30,6 +32,7 @@ export function TransaccionesTable({ transacciones }: { transacciones: Transacci
           <TableHead>Fecha</TableHead>
           <TableHead>Tipo</TableHead>
           <TableHead>Categoría</TableHead>
+          <TableHead>Área</TableHead>
           <TableHead>Descripción</TableHead>
           <TableHead>Método</TableHead>
           <TableHead>Registrado por</TableHead>
@@ -39,7 +42,7 @@ export function TransaccionesTable({ transacciones }: { transacciones: Transacci
       <TableBody>
         {transacciones.length === 0 && (
           <TableRow>
-            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
               No hay transacciones para los filtros seleccionados.
             </TableCell>
           </TableRow>
@@ -52,7 +55,15 @@ export function TransaccionesTable({ transacciones }: { transacciones: Transacci
                 {t.tipo === "INGRESO" ? "Ingreso" : "Egreso"}
               </Badge>
             </TableCell>
-            <TableCell className="text-sm">{t.categoria}</TableCell>
+            <TableCell className="text-sm">
+              {t.categoria}
+              {t.tipo === "EGRESO" && (
+                <Badge variant="outline" className="ml-2 text-[10px]">
+                  {t.esFijo ? "Fijo" : "Variable"}
+                </Badge>
+              )}
+            </TableCell>
+            <TableCell className="text-sm text-muted-foreground">{t.area ?? "—"}</TableCell>
             <TableCell className="text-sm max-w-xs truncate">
               {t.descripcion}
               {t.origen === "IMPORTACION_EXCEL" && (

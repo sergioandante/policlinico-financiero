@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
+import { generarCodigoInventario } from "@/lib/utils";
 
 const esquemaItem = z.object({
   nombre: z.string().min(2),
@@ -26,9 +27,14 @@ export async function crearItemInventario(_prevState: any, formData: FormData) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
   const { fechaVencimiento, ...resto } = parsed.data;
+  const total = await prisma.inventarioItem.count();
 
   await prisma.inventarioItem.create({
-    data: { ...resto, fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento) : null },
+    data: {
+      ...resto,
+      codigo: generarCodigoInventario(total + 1),
+      fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento) : null,
+    },
   });
 
   revalidatePath("/inventario");

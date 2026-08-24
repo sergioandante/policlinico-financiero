@@ -8,15 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { formatearMoneda } from "@/lib/utils";
 import { AlertTriangle, PiggyBank } from "lucide-react";
 import { NuevoPresupuestoDialog } from "@/components/presupuestos/nuevo-presupuesto-dialog";
-import { obtenerCategorias } from "@/lib/consultas/transacciones";
+import { obtenerAreasActivas } from "@/lib/consultas/areas";
 
 export default async function PresupuestosPage() {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "verPresupuestos")) redirect("/dashboard");
 
-  const [presupuestos, categorias] = await Promise.all([
+  const [presupuestos, areas] = await Promise.all([
     obtenerPresupuestosActivos(),
-    obtenerCategorias("EGRESO"),
+    obtenerAreasActivas(),
   ]);
   const puedeEditar = puede(session.user.rol, "editarPresupuestos");
   const hoy = new Date();
@@ -27,9 +27,9 @@ export default async function PresupuestosPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Presupuestos</h1>
-          <p className="text-sm text-muted-foreground capitalize">Ejecución de {nombreMes} por área/categoría.</p>
+          <p className="text-sm text-muted-foreground capitalize">Ejecución de {nombreMes} por área.</p>
         </div>
-        {puedeEditar && <NuevoPresupuestoDialog categorias={categorias} />}
+        {puedeEditar && <NuevoPresupuestoDialog areas={areas} />}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -50,7 +50,7 @@ export default async function PresupuestosPage() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <PiggyBank className="w-4 h-4 text-brand-600" />
-                    {p.categoria}
+                    {p.area}
                   </CardTitle>
                   {(sobrepasado || enAlerta) && (
                     <Badge variant={sobrepasado ? "destructive" : "warning"}>

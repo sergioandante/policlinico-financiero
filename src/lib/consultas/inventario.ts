@@ -11,6 +11,7 @@ export async function obtenerInventario() {
 
   return items.map((i) => ({
     id: i.id,
+    codigo: i.codigo,
     nombre: i.nombre,
     categoria: i.categoria,
     unidadMedida: i.unidadMedida,

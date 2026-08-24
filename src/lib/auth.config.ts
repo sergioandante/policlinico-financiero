@@ -6,6 +6,12 @@ import type { NextAuthConfig } from "next-auth";
 // vivir en Edge sin problema. El provider real se agrega en `auth.ts`,
 // que es el que corren la ruta API y los Server Components/Actions (Node.js).
 export const authConfig = {
+  // En Vercel, cada preview deployment (rama/PR) tiene su propia URL, que
+  // cambia constantemente. Sin esto, NextAuth intenta construir las URLs
+  // de redirección con AUTH_URL/NEXTAUTH_URL (si está seteada, p.ej. a
+  // localhost para desarrollo local) en vez del host real de la request,
+  // mandando a los usuarios a una URL equivocada después del login.
+  trustHost: true,
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
   providers: [],
