@@ -37,3 +37,26 @@ export async function crearMeta(_prevState: any, formData: FormData) {
   revalidatePath("/dashboard");
   return { ok: true, error: null };
 }
+
+export async function actualizarMeta(id: string, _prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "editarMetas")) {
+    return { ok: false, error: "No tienes permiso para editar metas." };
+  }
+
+  const raw = Object.fromEntries(formData);
+  const parsed = esquema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const { areaId, ...resto } = parsed.data;
+  await prisma.metaFinanciera.update({
+    where: { id },
+    data: { ...resto, areaId: areaId || null, notas: parsed.data.notas || null },
+  });
+
+  revalidatePath("/metas");
+  revalidatePath("/dashboard");
+  return { ok: true, error: null };
+}

@@ -104,7 +104,22 @@ export default async function InventarioPage() {
                   </TableCell>
                   {puedeEditar && (
                     <TableCell>
-                      <AjustarStockDialog itemId={i.id} nombre={i.nombre} />
+                      <div className="flex items-center gap-1">
+                        <AjustarStockDialog itemId={i.id} nombre={i.nombre} />
+                        <NuevoItemDialog
+                          item={{
+                            id: i.id,
+                            nombre: i.nombre,
+                            categoria: i.categoria,
+                            unidadMedida: i.unidadMedida,
+                            stockActual: i.stockActual,
+                            stockMinimo: i.stockMinimo,
+                            fechaVencimiento: i.fechaVencimiento
+                              ? i.fechaVencimiento.toISOString().slice(0, 10)
+                              : null,
+                          }}
+                        />
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>

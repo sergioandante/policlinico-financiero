@@ -36,3 +36,25 @@ export async function crearPresupuesto(_prevState: any, formData: FormData) {
   revalidatePath("/dashboard");
   return { ok: true, error: null };
 }
+
+export async function actualizarPresupuesto(id: string, _prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "editarPresupuestos")) {
+    return { ok: false, error: "No tienes permiso para editar presupuestos." };
+  }
+
+  const parsed = esquema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  try {
+    await prisma.presupuesto.update({ where: { id }, data: parsed.data });
+  } catch (e: any) {
+    return { ok: false, error: "Ya existe un presupuesto para esa área en ese periodo." };
+  }
+
+  revalidatePath("/presupuestos");
+  revalidatePath("/dashboard");
+  return { ok: true, error: null };
+}

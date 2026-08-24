@@ -51,7 +51,24 @@ export default async function MetasPage() {
                   <Target className="w-4 h-4 text-brand-600" />
                   {m.nombre}
                 </CardTitle>
-                <Badge variant={m.cumple ? "success" : "warning"}>{m.cumple ? "En camino" : "Por debajo"}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant={m.cumple ? "success" : "warning"}>{m.cumple ? "En camino" : "Por debajo"}</Badge>
+                  {puedeEditar && (
+                    <NuevaMetaDialog
+                      areas={areas}
+                      meta={{
+                        id: m.id,
+                        nombre: m.nombre,
+                        tipo: m.tipo,
+                        areaId: m.areaId,
+                        montoObjetivo: m.montoObjetivo,
+                        periodoMes: m.periodoMes,
+                        periodoAnio: m.periodoAnio,
+                        notas: m.notas,
+                      }}
+                    />
+                  )}
+                </div>
               </div>
               <CardDescription>
                 {NOMBRES_TIPO[m.tipo]} · {m.area}

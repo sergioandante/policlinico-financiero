@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { puede, type Rol } from "@/lib/permisos";
+import { Logo } from "@/components/shared/logo";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permiso: "verDashboard" as const },
@@ -38,7 +39,7 @@ export function Sidebar({ rol }: { rol: Rol }) {
   return (
     <aside className="hidden md:flex md:flex-col w-64 shrink-0 bg-brand-800 text-brand-50 min-h-screen p-4">
       <div className="flex items-center gap-2 px-2 py-3 font-display font-bold text-lg">
-        <Wallet2 className="w-6 h-6" />
+        <Logo variant="light" className="w-7 h-7 shrink-0" />
         Policlínico San Damián
       </div>
 

@@ -29,6 +29,7 @@ export default async function TransaccionesPage({
     obtenerAreasActivas(),
   ]);
   const puedeCrear = puede(session.user.rol, "crearTransacciones");
+  const puedeEditar = puede(session.user.rol, "editarTransacciones");
   const puedeExportar = puede(session.user.rol, "exportarExcel");
 
   const filasExportar = transacciones.map((t) => ({
@@ -116,7 +117,13 @@ export default async function TransaccionesPage({
             </Button>
           </form>
 
-          <TransaccionesTable transacciones={transacciones} />
+          <TransaccionesTable
+            transacciones={transacciones}
+            categorias={categorias}
+            cajas={cajas}
+            areas={areas}
+            puedeEditar={puedeEditar}
+          />
         </CardContent>
       </Card>
     </div>

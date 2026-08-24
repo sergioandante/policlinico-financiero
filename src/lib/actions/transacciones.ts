@@ -87,6 +87,89 @@ export async function crearTransaccion(_prevState: any, formData: FormData) {
   return { ok: true, error: null };
 }
 
+// Edita una transacción existente. Si estaba (o queda) ligada a una caja,
+// primero revierte el efecto del movimiento original sobre el saldo y luego
+// aplica el nuevo, todo dentro de la misma transacción de base de datos para
+// que el saldo de caja nunca quede inconsistente a medio camino.
+export async function actualizarTransaccion(id: string, _prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "editarTransacciones")) {
+    return { ok: false, error: "No tienes permiso para editar transacciones." };
+  }
+
+  const raw = Object.fromEntries(formData);
+  const parsed = esquemaTransaccion.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const data = parsed.data;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const original = await tx.transaccion.findUniqueOrThrow({ where: { id } });
+      const movimientoOriginal = await tx.movimientoCaja.findFirst({ where: { transaccionId: id } });
+
+      if (movimientoOriginal) {
+        const caja = await tx.caja.findUniqueOrThrow({ where: { id: movimientoOriginal.cajaId } });
+        const saldoRevertido =
+          original.tipo === "INGRESO"
+            ? Number(caja.saldoActual) - Number(original.monto)
+            : Number(caja.saldoActual) + Number(original.monto);
+        await tx.caja.update({ where: { id: caja.id }, data: { saldoActual: saldoRevertido } });
+        await tx.movimientoCaja.delete({ where: { id: movimientoOriginal.id } });
+      }
+
+      await tx.transaccion.update({
+        where: { id },
+        data: {
+          tipo: data.tipo,
+          monto: data.monto,
+          fecha: new Date(data.fecha),
+          categoriaId: data.categoriaId,
+          areaId: data.areaId,
+          descripcion: data.descripcion,
+          metodoPago: data.metodoPago,
+          comprobante: data.comprobante || null,
+          proveedorOCliente: data.proveedorOCliente || null,
+          cajaId: data.cajaId || null,
+        },
+      });
+
+      if (data.cajaId) {
+        const caja = await tx.caja.findUniqueOrThrow({ where: { id: data.cajaId } });
+        const saldoAnterior = Number(caja.saldoActual);
+        const saldoNuevo = data.tipo === "INGRESO" ? saldoAnterior + data.monto : saldoAnterior - data.monto;
+
+        if (data.tipo === "EGRESO" && saldoNuevo < 0) {
+          throw new Error(`Saldo insuficiente en ${caja.nombre}. Disponible: S/ ${saldoAnterior.toFixed(2)}`);
+        }
+
+        await tx.caja.update({ where: { id: data.cajaId }, data: { saldoActual: saldoNuevo } });
+        await tx.movimientoCaja.create({
+          data: {
+            cajaId: data.cajaId,
+            tipo: data.tipo,
+            monto: data.monto,
+            saldoAnterior,
+            saldoNuevo,
+            descripcion: data.descripcion,
+            transaccionId: id,
+            usuarioId: session.user.id,
+          },
+        });
+      }
+    });
+  } catch (e: any) {
+    return { ok: false, error: e.message ?? "Error al actualizar la transacción" };
+  }
+
+  revalidatePath("/transacciones");
+  revalidatePath("/cajas");
+  revalidatePath("/dashboard");
+  revalidatePath("/presupuestos");
+  return { ok: true, error: null };
+}
+
 // Usado por la importación de Excel: inserta muchas transacciones de golpe.
 // No afecta caja (las ventas históricas importadas no deben re-mover saldos
 // ya conciliados); si el cliente lo requiere, se puede activar por fila.
