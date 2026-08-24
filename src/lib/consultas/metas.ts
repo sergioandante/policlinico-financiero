@@ -50,10 +50,13 @@ export async function obtenerMetasConProgreso() {
       id: m.id,
       nombre: m.nombre,
       tipo: m.tipo,
+      areaId: m.areaId,
       area: m.area?.nombre ?? "Todo el policlínico",
       montoObjetivo,
       montoReal,
       porcentaje,
+      periodoMes: m.periodoMes,
+      periodoAnio: m.periodoAnio,
       cumple,
       notas: m.notas,
     });

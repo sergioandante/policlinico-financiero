@@ -139,11 +139,14 @@ export async function obtenerPresupuestosActivos() {
     resultado.push({
       id: p.id,
       nombre: p.nombre,
+      areaId: p.areaId,
       area: p.area.nombre,
       montoAsignado,
       montoGastado,
       porcentaje: montoAsignado > 0 ? (montoGastado / montoAsignado) * 100 : 0,
       umbralAlerta: p.umbralAlerta,
+      periodoMes: p.periodoMes,
+      periodoAnio: p.periodoAnio,
     });
   }
   return resultado;

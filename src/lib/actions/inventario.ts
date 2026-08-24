@@ -41,6 +41,27 @@ export async function crearItemInventario(_prevState: any, formData: FormData) {
   return { ok: true, error: null };
 }
 
+export async function actualizarItemInventario(id: string, _prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "editarInventario")) {
+    return { ok: false, error: "No tienes permiso para editar inventario." };
+  }
+
+  const parsed = esquemaItem.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const { fechaVencimiento, ...resto } = parsed.data;
+
+  await prisma.inventarioItem.update({
+    where: { id },
+    data: { ...resto, fechaVencimiento: fechaVencimiento ? new Date(fechaVencimiento) : null },
+  });
+
+  revalidatePath("/inventario");
+  return { ok: true, error: null };
+}
+
 export async function ajustarStock(itemId: string, tipo: "ENTRADA" | "SALIDA", cantidad: number, motivo: string) {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "editarInventario")) {

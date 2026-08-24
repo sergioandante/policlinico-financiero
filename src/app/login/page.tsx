@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Wallet2, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Logo } from "@/components/shared/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,8 +37,8 @@ export default function LoginPage() {
         <div className="absolute -right-24 -top-24 w-96 h-96 rounded-full bg-brand-700/40" />
         <div className="absolute -right-10 bottom-10 w-64 h-64 rounded-full bg-brand-600/30" />
         <div className="relative z-10 flex items-center gap-2 font-display font-bold text-lg">
-          <Wallet2 className="w-6 h-6" />
-          Módulo Financiero
+          <Logo variant="light" className="w-7 h-7 shrink-0" />
+          Policlínico San Damián
         </div>
         <div className="relative z-10 space-y-4 max-w-sm">
           <p className="font-display text-3xl font-semibold leading-tight">

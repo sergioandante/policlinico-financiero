@@ -52,12 +52,28 @@ export default async function PresupuestosPage() {
                     <PiggyBank className="w-4 h-4 text-brand-600" />
                     {p.area}
                   </CardTitle>
-                  {(sobrepasado || enAlerta) && (
-                    <Badge variant={sobrepasado ? "destructive" : "warning"}>
-                      <AlertTriangle className="w-3 h-3 mr-1" />
-                      {sobrepasado ? "Presupuesto superado" : "Cerca del límite"}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(sobrepasado || enAlerta) && (
+                      <Badge variant={sobrepasado ? "destructive" : "warning"}>
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        {sobrepasado ? "Presupuesto superado" : "Cerca del límite"}
+                      </Badge>
+                    )}
+                    {puedeEditar && (
+                      <NuevoPresupuestoDialog
+                        areas={areas}
+                        presupuesto={{
+                          id: p.id,
+                          nombre: p.nombre,
+                          areaId: p.areaId,
+                          montoAsignado: p.montoAsignado,
+                          periodoMes: p.periodoMes,
+                          periodoAnio: p.periodoAnio,
+                          umbralAlerta: p.umbralAlerta,
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
                 <CardDescription>{p.nombre}</CardDescription>
               </CardHeader>

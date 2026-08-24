@@ -16,8 +16,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { crearMeta } from "@/lib/actions/metas";
-import { Target } from "lucide-react";
+import { crearMeta, actualizarMeta } from "@/lib/actions/metas";
+import { Target, Pencil } from "lucide-react";
 
 const initialState = { ok: false, error: null as string | null };
 const MESES = [
@@ -25,44 +25,69 @@ const MESES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-export function NuevaMetaDialog({ areas }: { areas: { id: string; nombre: string }[] }) {
+type MetaExistente = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  areaId: string | null;
+  montoObjetivo: number;
+  periodoMes: number;
+  periodoAnio: number;
+  notas: string | null;
+};
+
+export function NuevaMetaDialog({
+  areas,
+  meta,
+}: {
+  areas: { id: string; nombre: string }[];
+  meta?: MetaExistente;
+}) {
+  const esEdicion = !!meta;
   const [open, setOpen] = useState(false);
-  const [state, formAction, pending] = useActionState(crearMeta, initialState);
+  const accion = esEdicion ? actualizarMeta.bind(null, meta!.id) : crearMeta;
+  const [state, formAction, pending] = useActionState(accion, initialState);
   const hoy = new Date();
 
   useEffect(() => {
     if (state.ok) {
-      toast.success("Meta creada correctamente.");
+      toast.success(esEdicion ? "Meta actualizada correctamente." : "Meta creada correctamente.");
       setOpen(false);
     } else if (state.error) {
       toast.error(state.error);
     }
-  }, [state]);
+  }, [state, esEdicion]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
-          <Target className="w-4 h-4" />
-          Nueva meta
-        </Button>
+        {esEdicion ? (
+          <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Pencil className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button size="sm">
+            <Target className="w-4 h-4" />
+            Nueva meta
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Crear meta económica</DialogTitle>
+          <DialogTitle>{esEdicion ? "Editar meta económica" : "Crear meta económica"}</DialogTitle>
           <DialogDescription>De ingreso, ahorro o de reducción de gasto por área.</DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Nombre</Label>
-            <Input name="nombre" required placeholder="Ej. Meta de ingresos - Setiembre" />
+            <Input name="nombre" required placeholder="Ej. Meta de ingresos - Setiembre" defaultValue={meta?.nombre} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Tipo</Label>
-              <Select name="tipo" defaultValue="INGRESO_MENSUAL" required>
+              <Select name="tipo" defaultValue={meta?.tipo ?? "INGRESO_MENSUAL"} required>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -75,7 +100,7 @@ export function NuevaMetaDialog({ areas }: { areas: { id: string; nombre: string
             </div>
             <div className="space-y-1.5">
               <Label>Área (opcional)</Label>
-              <Select name="areaId">
+              <Select name="areaId" defaultValue={meta?.areaId ?? undefined}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todo el policlínico" />
                 </SelectTrigger>
@@ -93,7 +118,7 @@ export function NuevaMetaDialog({ areas }: { areas: { id: string; nombre: string
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label>Mes</Label>
-              <Select name="periodoMes" defaultValue={String(hoy.getMonth() + 1)} required>
+              <Select name="periodoMes" defaultValue={String(meta?.periodoMes ?? hoy.getMonth() + 1)} required>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -108,22 +133,34 @@ export function NuevaMetaDialog({ areas }: { areas: { id: string; nombre: string
             </div>
             <div className="space-y-1.5">
               <Label>Año</Label>
-              <Input name="periodoAnio" type="number" defaultValue={hoy.getFullYear()} required />
+              <Input name="periodoAnio" type="number" defaultValue={meta?.periodoAnio ?? hoy.getFullYear()} required />
             </div>
             <div className="space-y-1.5">
               <Label>Monto objetivo (S/)</Label>
-              <Input name="montoObjetivo" type="number" step="0.01" min="0.01" required placeholder="10000.00" />
+              <Input
+                name="montoObjetivo"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="10000.00"
+                defaultValue={meta?.montoObjetivo}
+              />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label>Notas (opcional)</Label>
-            <Textarea name="notas" placeholder="Contexto o plan de acción para llegar a la meta" />
+            <Textarea
+              name="notas"
+              placeholder="Contexto o plan de acción para llegar a la meta"
+              defaultValue={meta?.notas ?? undefined}
+            />
           </div>
 
           <DialogFooter>
             <Button type="submit" disabled={pending}>
-              {pending ? "Guardando..." : "Crear meta"}
+              {pending ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear meta"}
             </Button>
           </DialogFooter>
         </form>

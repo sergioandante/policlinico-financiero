@@ -16,6 +16,7 @@ export const PERMISOS = {
   verReportes: ["ADMINISTRADOR", "GERENTE", "CONTADOR"] as Rol[],
   verTransacciones: ["ADMINISTRADOR", "GERENTE", "CONTADOR"] as Rol[],
   crearTransacciones: ["ADMINISTRADOR", "GERENTE"] as Rol[],
+  editarTransacciones: ["ADMINISTRADOR", "GERENTE"] as Rol[],
   importarExcel: ["ADMINISTRADOR", "GERENTE"] as Rol[],
   exportarExcel: ["ADMINISTRADOR", "GERENTE", "CONTADOR", "LOGISTICA"] as Rol[],
   verCajas: ["ADMINISTRADOR", "GERENTE", "CONTADOR"] as Rol[],

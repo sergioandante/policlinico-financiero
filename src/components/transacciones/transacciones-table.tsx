@@ -1,20 +1,29 @@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatearMoneda, formatearFecha } from "@/lib/utils";
+import { TransaccionDialog } from "@/components/transacciones/transaccion-dialog";
 
 type Transaccion = {
   id: string;
   tipo: string;
   monto: number;
   fecha: Date;
+  categoriaId: string;
   categoria: string;
   esFijo: boolean;
+  areaId: string | null;
   area: string | null;
   descripcion: string;
   metodoPago: string;
+  comprobante: string | null;
+  proveedorOCliente: string | null;
+  cajaId: string | null;
   origen: string;
   usuario: string;
 };
+type Categoria = { id: string; nombre: string; tipo: string; parentId: string | null };
+type Caja = { id: string; nombre: string };
+type Area = { id: string; nombre: string };
 
 const METODOS: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -24,7 +33,20 @@ const METODOS: Record<string, string> = {
   OTRO: "Otro",
 };
 
-export function TransaccionesTable({ transacciones }: { transacciones: Transaccion[] }) {
+export function TransaccionesTable({
+  transacciones,
+  categorias,
+  cajas,
+  areas,
+  puedeEditar,
+}: {
+  transacciones: Transaccion[];
+  categorias: Categoria[];
+  cajas: Caja[];
+  areas: Area[];
+  puedeEditar: boolean;
+}) {
+  const columnas = puedeEditar ? 9 : 8;
   return (
     <Table>
       <TableHeader>
@@ -37,12 +59,13 @@ export function TransaccionesTable({ transacciones }: { transacciones: Transacci
           <TableHead>Método</TableHead>
           <TableHead>Registrado por</TableHead>
           <TableHead className="text-right">Monto</TableHead>
+          {puedeEditar && <TableHead />}
         </TableRow>
       </TableHeader>
       <TableBody>
         {transacciones.length === 0 && (
           <TableRow>
-            <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+            <TableCell colSpan={columnas} className="text-center text-muted-foreground py-8">
               No hay transacciones para los filtros seleccionados.
             </TableCell>
           </TableRow>
@@ -80,6 +103,11 @@ export function TransaccionesTable({ transacciones }: { transacciones: Transacci
               {t.tipo === "INGRESO" ? "+" : "-"}
               {formatearMoneda(t.monto)}
             </TableCell>
+            {puedeEditar && (
+              <TableCell>
+                <TransaccionDialog categorias={categorias} cajas={cajas} areas={areas} transaccion={t} />
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>

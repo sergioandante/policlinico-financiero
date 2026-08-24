@@ -15,8 +15,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { crearTransaccion } from "@/lib/actions/transacciones";
-import { PlusCircle } from "lucide-react";
+import { crearTransaccion, actualizarTransaccion } from "@/lib/actions/transacciones";
+import { PlusCircle, Pencil } from "lucide-react";
 
 const initialState = { ok: false, error: null as string | null };
 
@@ -25,43 +25,67 @@ const initialState = { ok: false, error: null as string | null };
 type Categoria = { id: string; nombre: string; tipo: string; parentId: string | null };
 type Caja = { id: string; nombre: string };
 type Area = { id: string; nombre: string };
+type TransaccionExistente = {
+  id: string;
+  tipo: string;
+  monto: number;
+  fecha: Date;
+  categoriaId: string;
+  areaId: string | null;
+  descripcion: string;
+  metodoPago: string;
+  comprobante: string | null;
+  proveedorOCliente: string | null;
+  cajaId: string | null;
+};
 
 export function TransaccionDialog({
   categorias,
   cajas,
   areas,
+  transaccion,
 }: {
   categorias: Categoria[];
   cajas: Caja[];
   areas: Area[];
+  transaccion?: TransaccionExistente;
 }) {
+  const esEdicion = !!transaccion;
   const [open, setOpen] = useState(false);
-  const [tipo, setTipo] = useState<"INGRESO" | "EGRESO">("INGRESO");
-  const [state, formAction, pending] = useActionState(crearTransaccion, initialState);
+  const [tipo, setTipo] = useState<"INGRESO" | "EGRESO">((transaccion?.tipo as "INGRESO" | "EGRESO") ?? "INGRESO");
+  const accion = esEdicion ? actualizarTransaccion.bind(null, transaccion!.id) : crearTransaccion;
+  const [state, formAction, pending] = useActionState(accion, initialState);
 
   const categoriasFiltradas = useMemo(() => categorias.filter((c) => c.tipo === tipo), [categorias, tipo]);
   const hoy = new Date().toISOString().slice(0, 10);
+  const fechaInicial = transaccion ? transaccion.fecha.toISOString().slice(0, 10) : hoy;
 
   useEffect(() => {
     if (state.ok) {
-      toast.success("Transacción registrada correctamente.");
+      toast.success(esEdicion ? "Transacción actualizada correctamente." : "Transacción registrada correctamente.");
       setOpen(false);
     } else if (state.error) {
       toast.error(state.error);
     }
-  }, [state]);
+  }, [state, esEdicion]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
-          <PlusCircle className="w-4 h-4" />
-          Nueva transacción
-        </Button>
+        {esEdicion ? (
+          <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Pencil className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button size="sm">
+            <PlusCircle className="w-4 h-4" />
+            Nueva transacción
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Registrar transacción</DialogTitle>
+          <DialogTitle>{esEdicion ? "Editar transacción" : "Registrar transacción"}</DialogTitle>
           <DialogDescription>Ingreso o egreso del negocio, con categoría y caja opcional.</DialogDescription>
         </DialogHeader>
 
@@ -81,14 +105,14 @@ export function TransaccionDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Fecha</Label>
-              <Input name="fecha" type="date" defaultValue={hoy} required />
+              <Input name="fecha" type="date" defaultValue={fechaInicial} required />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Categoría</Label>
-              <Select name="categoriaId" required>
+              <Select name="categoriaId" defaultValue={transaccion?.categoriaId} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona categoría" />
                 </SelectTrigger>
@@ -104,7 +128,7 @@ export function TransaccionDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Área</Label>
-              <Select name="areaId" required>
+              <Select name="areaId" defaultValue={transaccion?.areaId ?? undefined} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona área" />
                 </SelectTrigger>
@@ -122,11 +146,19 @@ export function TransaccionDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Monto (S/)</Label>
-              <Input name="monto" type="number" step="0.01" min="0.01" required placeholder="0.00" />
+              <Input
+                name="monto"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0.00"
+                defaultValue={transaccion?.monto}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Método de pago</Label>
-              <Select name="metodoPago" defaultValue="EFECTIVO" required>
+              <Select name="metodoPago" defaultValue={transaccion?.metodoPago ?? "EFECTIVO"} required>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -143,23 +175,28 @@ export function TransaccionDialog({
 
           <div className="space-y-1.5">
             <Label>Descripción</Label>
-            <Input name="descripcion" required placeholder="Ej. Pago programa premium - paciente" />
+            <Input
+              name="descripcion"
+              required
+              placeholder="Ej. Pago programa premium - paciente"
+              defaultValue={transaccion?.descripcion}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Proveedor / Cliente (opcional)</Label>
-              <Input name="proveedorOCliente" placeholder="Nombre" />
+              <Input name="proveedorOCliente" placeholder="Nombre" defaultValue={transaccion?.proveedorOCliente ?? undefined} />
             </div>
             <div className="space-y-1.5">
               <Label>N° comprobante (opcional)</Label>
-              <Input name="comprobante" placeholder="F001-000123" />
+              <Input name="comprobante" placeholder="F001-000123" defaultValue={transaccion?.comprobante ?? undefined} />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label>¿Afecta una caja? (opcional)</Label>
-            <Select name="cajaId">
+            <Select name="cajaId" defaultValue={transaccion?.cajaId ?? undefined}>
               <SelectTrigger>
                 <SelectValue placeholder="No afecta caja (ej. depósito bancario directo)" />
               </SelectTrigger>
@@ -175,7 +212,7 @@ export function TransaccionDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={pending}>
-              {pending ? "Guardando..." : "Guardar transacción"}
+              {pending ? "Guardando..." : esEdicion ? "Guardar cambios" : "Guardar transacción"}
             </Button>
           </DialogFooter>
         </form>

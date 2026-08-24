@@ -1,7 +1,11 @@
 import type { Config } from "tailwindcss";
 
-// Paleta propia del proyecto:
-// - "brand" (teal profundo): color de marca del policlínico, transmite salud + control.
+// Paleta propia del proyecto, tomada del Manual de Identidad Corporativa del
+// Policlínico San Damián:
+// - "brand" (azul institucional): 600=#0043D1 (Azul de Acento, PANTONE 2728 C),
+//   800=#102353 (Azul Corporativo Secundario, PANTONE 2767 C) y
+//   900=#0B173A (Azul Corporativo Principal, PANTONE 296 C). Los pasos
+//   intermedios se interpolan para tener una escala utilizable en toda la UI.
 // - "ingreso" / "egreso" / "alerta": colores semánticos fijos para dinero en TODA la app,
 //   así el usuario aprende de un vistazo "verde = entra, rojo = sale, ámbar = atención".
 export default {
@@ -11,22 +15,22 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: "#eefaf6",
-          100: "#d5f2e8",
-          200: "#ade4d1",
-          300: "#79ceb4",
-          400: "#48b295",
-          500: "#28967b",
-          600: "#1c7a64", // primario
-          700: "#186252",
-          800: "#164e43",
-          900: "#0f342e",
+          50: "#eef2fc",
+          100: "#dbe6fa",
+          200: "#b8ccf5",
+          300: "#8babef",
+          400: "#4d7ce6",
+          500: "#1a54dd",
+          600: "#0043d1", // Azul de Acento — primario (botones, iconos)
+          700: "#00368a",
+          800: "#102353", // Azul Corporativo Secundario (texto, acentos)
+          900: "#0b173a", // Azul Corporativo Principal (fondos, cabeceras)
         },
         ingreso: { DEFAULT: "#16a34a", bg: "#eafaf0" },
         egreso: { DEFAULT: "#dc2626", bg: "#fdecec" },
         alerta: { DEFAULT: "#d97706", bg: "#fef3e2" },
-        ink: "#10231f",
-        surface: "#f6f5f1",
+        ink: "#0b173a",
+        surface: "#f5f5f5",
         border: {
           DEFAULT: "hsl(var(--border))",
         },
@@ -43,8 +47,11 @@ export default {
         ring: "hsl(var(--ring))",
       },
       fontFamily: {
-        display: ["var(--font-manrope)", "sans-serif"],
-        sans: ["var(--font-inter)", "sans-serif"],
+        // Gabarito es la tipografía oficial del Policlínico San Damián
+        // (Manual de Identidad Corporativa, sección B07): se usa tanto para
+        // titulares como para texto de cuerpo en toda la comunicación oficial.
+        display: ["var(--font-gabarito)", "sans-serif"],
+        sans: ["var(--font-gabarito)", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

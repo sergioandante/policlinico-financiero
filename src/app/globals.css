@@ -2,27 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tokens de color derivados del Manual de Identidad Corporativa del
+   Policlínico San Damián: --primary/--ring usan el Azul de Acento
+   (#0043D1) y --foreground el Azul Corporativo Principal (#0B173A). */
 @layer base {
   :root {
-    --background: 60 9% 96%;
-    --foreground: 160 30% 10%;
+    --background: 0 0% 96%;
+    --foreground: 225 68% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 160 30% 10%;
+    --card-foreground: 225 68% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 160 30% 10%;
-    --primary: 165 63% 30%;
+    --popover-foreground: 225 68% 13%;
+    --primary: 221 100% 41%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 160 20% 94%;
-    --secondary-foreground: 160 30% 15%;
-    --muted: 160 15% 93%;
-    --muted-foreground: 160 10% 40%;
-    --accent: 160 20% 92%;
-    --accent-foreground: 160 30% 15%;
+    --secondary: 221 30% 94%;
+    --secondary-foreground: 225 40% 20%;
+    --muted: 220 15% 93%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 221 40% 92%;
+    --accent-foreground: 225 40% 20%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 160 15% 87%;
-    --input: 160 15% 87%;
-    --ring: 165 63% 30%;
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 221 100% 41%;
     --radius: 0.65rem;
   }
 }
