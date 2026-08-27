@@ -51,7 +51,12 @@ export default async function UsuariosPage() {
                     <Badge variant={u.activo ? "success" : "destructive"}>{u.activo ? "Activo" : "Inactivo"}</Badge>
                   </TableCell>
                   <TableCell>
-                    <ToggleUsuarioButton usuarioId={u.id} activo={u.activo} />
+                    <div className="flex items-center gap-1">
+                      <NuevoUsuarioDialog
+                        usuario={{ id: u.id, nombre: u.nombre, email: u.email, rol: u.rol }}
+                      />
+                      <ToggleUsuarioButton usuarioId={u.id} activo={u.activo} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
