@@ -42,6 +42,44 @@ export async function crearUsuario(_prevState: any, formData: FormData) {
   return { ok: true, error: null };
 }
 
+const esquemaEdicion = z.object({
+  nombre: z.string().min(3),
+  email: z.string().email(),
+  password: z.string().min(6, "Mínimo 6 caracteres").optional().or(z.literal("")),
+  rol: z.enum(["ADMINISTRADOR", "GERENTE", "LOGISTICA", "CONTADOR"]),
+});
+
+// La contraseña es opcional: si se deja en blanco, se conserva la actual.
+export async function actualizarUsuario(usuarioId: string, _prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "gestionarUsuarios")) {
+    return { ok: false, error: "No tienes permiso para gestionar usuarios." };
+  }
+
+  const parsed = esquemaEdicion.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const existente = await prisma.usuario.findUnique({ where: { email: parsed.data.email } });
+  if (existente && existente.id !== usuarioId) {
+    return { ok: false, error: "Ya existe otro usuario con ese correo." };
+  }
+
+  await prisma.usuario.update({
+    where: { id: usuarioId },
+    data: {
+      nombre: parsed.data.nombre,
+      email: parsed.data.email,
+      rol: parsed.data.rol,
+      ...(parsed.data.password ? { passwordHash: await bcrypt.hash(parsed.data.password, 10) } : {}),
+    },
+  });
+
+  revalidatePath("/usuarios");
+  return { ok: true, error: null };
+}
+
 export async function cambiarEstadoUsuario(usuarioId: string, activo: boolean) {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "gestionarUsuarios")) {
