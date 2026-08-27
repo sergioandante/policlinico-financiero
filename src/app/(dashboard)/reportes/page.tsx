@@ -1,8 +1,14 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { puede } from "@/lib/permisos";
-import { obtenerReporteDiario } from "@/lib/consultas/reportes";
+import {
+  obtenerReporteDiario,
+  obtenerReporteMensual,
+  obtenerReporteAnual,
+  obtenerAniosConDatos,
+} from "@/lib/consultas/reportes";
 import { ReporteDiarioChart } from "@/components/dashboard/reporte-diario-chart";
+import { IngresosEgresosChart } from "@/components/dashboard/ingresos-egresos-chart";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -12,13 +18,19 @@ import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ desde?: string; hasta?: string }>;
+  searchParams: Promise<{ desde?: string; hasta?: string; anio?: string }>;
 }) {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "verReportes")) redirect("/dashboard");
 
-  const { desde, hasta } = await searchParams;
-  const reporte = await obtenerReporteDiario({ desde, hasta });
+  const { desde, hasta, anio } = await searchParams;
+  const anioSeleccionado = anio ? Number(anio) : undefined;
+  const [reporte, reporteMensual, reporteAnual, aniosDisponibles] = await Promise.all([
+    obtenerReporteDiario({ desde, hasta }),
+    obtenerReporteMensual({ anio: anioSeleccionado }),
+    obtenerReporteAnual(),
+    obtenerAniosConDatos(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -74,6 +86,67 @@ export default async function ReportesPage({
         </CardHeader>
         <CardContent>
           <ReporteDiarioChart data={reporte.diasGrafico} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Ingresos vs. Egresos por mes</CardTitle>
+              <CardDescription>Los 12 meses de {reporteMensual.anio}</CardDescription>
+            </div>
+            <form className="flex items-center gap-2">
+              <select
+                name="anio"
+                defaultValue={reporteMensual.anio}
+                className="h-9 rounded-md border border-input bg-white px-3 text-sm"
+              >
+                {aniosDisponibles.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="h-9 rounded-md bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
+              >
+                Ver
+              </button>
+            </form>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <IngresosEgresosChart data={reporteMensual.meses} />
+          <div className="grid grid-cols-3 gap-2 text-sm mt-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Ingresos {reporteMensual.anio}</p>
+              <p className="font-tabular font-medium text-ingreso">{formatearMoneda(reporteMensual.totalIngresos)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Egresos {reporteMensual.anio}</p>
+              <p className="font-tabular font-medium text-egreso">{formatearMoneda(reporteMensual.totalEgresos)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Neto {reporteMensual.anio}</p>
+              <p
+                className={`font-tabular font-medium ${reporteMensual.totalNeto >= 0 ? "text-ingreso" : "text-egreso"}`}
+              >
+                {formatearMoneda(reporteMensual.totalNeto)}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ingresos vs. Egresos por año</CardTitle>
+          <CardDescription>Comparativo de todo el historial registrado</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <IngresosEgresosChart data={reporteAnual.datos} />
         </CardContent>
       </Card>
 

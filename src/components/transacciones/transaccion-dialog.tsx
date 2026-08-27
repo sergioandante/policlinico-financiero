@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { crearTransaccion, actualizarTransaccion } from "@/lib/actions/transacciones";
+import { NuevaCategoriaDialog } from "@/components/transacciones/nueva-categoria-dialog";
 import { PlusCircle, Pencil } from "lucide-react";
 
 const initialState = { ok: false, error: null as string | null };
@@ -111,7 +112,10 @@ export function TransaccionDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Categoría</Label>
+              <div className="flex items-center justify-between">
+                <Label>Categoría</Label>
+                <NuevaCategoriaDialog tipo={tipo} />
+              </div>
               <Select name="categoriaId" defaultValue={transaccion?.categoriaId} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona categoría" />
