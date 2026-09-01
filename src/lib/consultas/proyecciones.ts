@@ -9,19 +9,48 @@ import { es } from "date-fns/locale";
 
 const MESES_HISTORIAL = 6;
 
-async function serieMensual(tipo: "INGRESO" | "EGRESO", esFijo?: boolean) {
+// Trae las transacciones de los últimos MESES_HISTORIAL meses en una sola
+// consulta y las agrupa por mes en memoria. Antes esto se hacía con una
+// consulta aggregate() por cada mes y por cada serie (6 viajes a la base de
+// datos, uno tras otro); con la base de datos en la nube, esa latencia
+// acumulada es justo lo que hacía lenta (o directamente hacía fallar por
+// tiempo de espera) la página de Proyecciones.
+async function calcularSeriesMensuales() {
   const ahora = new Date();
-  const serie: { mes: string; monto: number }[] = [];
-  for (let i = MESES_HISTORIAL - 1; i >= 0; i--) {
-    const mes = subMonths(ahora, i);
-    const inicio = startOfMonth(mes);
-    const fin = endOfMonth(mes);
-    const where: any = { tipo, fecha: { gte: inicio, lte: fin } };
-    if (esFijo !== undefined) where.categoria = { esFijo };
-    const agg = await prisma.transaccion.aggregate({ _sum: { monto: true }, where });
-    serie.push({ mes: format(mes, "MMM yyyy", { locale: es }), monto: Number(agg._sum.monto ?? 0) });
+  const inicioRango = startOfMonth(subMonths(ahora, MESES_HISTORIAL - 1));
+  const finRango = endOfMonth(ahora);
+
+  const transacciones = await prisma.transaccion.findMany({
+    where: { fecha: { gte: inicioRango, lte: finRango } },
+    select: { tipo: true, monto: true, fecha: true, categoria: { select: { esFijo: true } } },
+  });
+
+  const buckets = Array.from({ length: MESES_HISTORIAL }, (_, idx) => {
+    const mes = subMonths(ahora, MESES_HISTORIAL - 1 - idx);
+    return {
+      mes: format(mes, "MMM yyyy", { locale: es }),
+      inicio: startOfMonth(mes),
+      fin: endOfMonth(mes),
+      ingreso: 0,
+      egresoFijo: 0,
+      egresoVariable: 0,
+    };
+  });
+
+  for (const t of transacciones) {
+    const bucket = buckets.find((b) => t.fecha >= b.inicio && t.fecha <= b.fin);
+    if (!bucket) continue;
+    const monto = Number(t.monto);
+    if (t.tipo === "INGRESO") bucket.ingreso += monto;
+    else if (t.categoria.esFijo) bucket.egresoFijo += monto;
+    else bucket.egresoVariable += monto;
   }
-  return serie;
+
+  return {
+    serieIngresos: buckets.map((b) => ({ mes: b.mes, monto: b.ingreso })),
+    serieEgresosFijos: buckets.map((b) => ({ mes: b.mes, monto: b.egresoFijo })),
+    serieEgresosVariables: buckets.map((b) => ({ mes: b.mes, monto: b.egresoVariable })),
+  };
 }
 
 // Promedio de los últimos 3 meses + tendencia (pendiente simple entre el
@@ -41,11 +70,7 @@ function proyectar(serie: { mes: string; monto: number }[]) {
 }
 
 export async function obtenerProyeccionConsolidada() {
-  const [serieIngresos, serieEgresosFijos, serieEgresosVariables] = await Promise.all([
-    serieMensual("INGRESO"),
-    serieMensual("EGRESO", true),
-    serieMensual("EGRESO", false),
-  ]);
+  const { serieIngresos, serieEgresosFijos, serieEgresosVariables } = await calcularSeriesMensuales();
 
   const ingresos = proyectar(serieIngresos);
   const egresosFijos = proyectar(serieEgresosFijos);
@@ -76,39 +101,40 @@ export async function obtenerProyeccionConsolidada() {
 
 // Proyección por área: promedio de los últimos 3 meses de ingreso/egreso,
 // extrapolado al próximo mes — ayuda a decidir presupuestos por adelantado.
+// Una sola consulta trae todas las transacciones del rango (antes eran 14
+// áreas × 3 meses × 2 consultas = 84 viajes secuenciales a la base de datos).
 export async function obtenerProyeccionPorArea() {
   const ahora = new Date();
-  const areas = await prisma.area.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+  const inicioRango = startOfMonth(subMonths(ahora, 2));
+  const finRango = endOfMonth(ahora);
 
-  const resultado = [];
-  for (const area of areas) {
-    let ingresoTotal = 0;
-    let egresoTotal = 0;
-    for (let i = 2; i >= 0; i--) {
-      const mes = subMonths(ahora, i);
-      const inicio = startOfMonth(mes);
-      const fin = endOfMonth(mes);
-      const [ing, egr] = await Promise.all([
-        prisma.transaccion.aggregate({
-          _sum: { monto: true },
-          where: { tipo: "INGRESO", areaId: area.id, fecha: { gte: inicio, lte: fin } },
-        }),
-        prisma.transaccion.aggregate({
-          _sum: { monto: true },
-          where: { tipo: "EGRESO", areaId: area.id, fecha: { gte: inicio, lte: fin } },
-        }),
-      ]);
-      ingresoTotal += Number(ing._sum.monto ?? 0);
-      egresoTotal += Number(egr._sum.monto ?? 0);
-    }
-    resultado.push({
+  const [areas, transacciones] = await Promise.all([
+    prisma.area.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.transaccion.findMany({
+      where: { fecha: { gte: inicioRango, lte: finRango }, areaId: { not: null } },
+      select: { tipo: true, monto: true, areaId: true },
+    }),
+  ]);
+
+  const totalesPorArea = new Map<string, { ingreso: number; egreso: number }>();
+  for (const t of transacciones) {
+    if (!t.areaId) continue;
+    const bucket = totalesPorArea.get(t.areaId) ?? { ingreso: 0, egreso: 0 };
+    if (t.tipo === "INGRESO") bucket.ingreso += Number(t.monto);
+    else bucket.egreso += Number(t.monto);
+    totalesPorArea.set(t.areaId, bucket);
+  }
+
+  const resultado = areas.map((area) => {
+    const totales = totalesPorArea.get(area.id) ?? { ingreso: 0, egreso: 0 };
+    return {
       id: area.id,
       nombre: area.nombre,
-      ingresoProyectado: ingresoTotal / 3,
-      egresoProyectado: egresoTotal / 3,
-      margenProyectado: (ingresoTotal - egresoTotal) / 3,
-    });
-  }
+      ingresoProyectado: totales.ingreso / 3,
+      egresoProyectado: totales.egreso / 3,
+      margenProyectado: (totales.ingreso - totales.egreso) / 3,
+    };
+  });
 
   return resultado.sort((a, b) => b.margenProyectado - a.margenProyectado);
 }
