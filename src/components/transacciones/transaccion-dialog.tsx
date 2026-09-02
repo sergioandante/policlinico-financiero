@@ -114,7 +114,7 @@ export function TransaccionDialog({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label>Categoría</Label>
-                <NuevaCategoriaDialog tipo={tipo} />
+                <NuevaCategoriaDialog tipo={tipo} inline />
               </div>
               <Select name="categoriaId" defaultValue={transaccion?.categoriaId} required>
                 <SelectTrigger>
