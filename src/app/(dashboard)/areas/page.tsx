@@ -7,6 +7,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { NuevaAreaDialog } from "@/components/areas/nueva-area-dialog";
 import { ToggleAreaButton } from "@/components/areas/toggle-area-button";
+import { EliminarAreaButton } from "@/components/areas/eliminar-area-button";
 import { formatearMoneda } from "@/lib/utils";
 
 export default async function AreasPage() {
@@ -69,7 +70,11 @@ export default async function AreasPage() {
                   </TableCell>
                   {puedeEditar && (
                     <TableCell>
-                      <ToggleAreaButton areaId={a.id} activo={a.activo} />
+                      <div className="flex items-center gap-1">
+                        <NuevaAreaDialog area={{ id: a.id, nombre: a.nombre, tipo: a.tipo }} />
+                        <ToggleAreaButton areaId={a.id} activo={a.activo} />
+                        <EliminarAreaButton areaId={a.id} nombre={a.nombre} />
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
