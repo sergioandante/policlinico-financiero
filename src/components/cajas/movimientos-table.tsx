@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatearMoneda, formatearFechaHora } from "@/lib/utils";
@@ -79,7 +81,13 @@ export function MovimientosTable({ movimientos, puedeEditar }: { movimientos: Mo
               {puedeEditar && (
                 <TableCell>
                   {vieneDeTransaccion ? (
-                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">Editar en Transacciones</span>
+                    <Link
+                      href={`/transacciones?editar=${m.transaccionId}`}
+                      className="inline-flex items-center gap-1 text-[10px] text-brand-600 hover:underline whitespace-nowrap"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Editar en Transacciones
+                    </Link>
                   ) : (
                     <div className="flex items-center gap-0.5">
                       {!esTraspaso && (

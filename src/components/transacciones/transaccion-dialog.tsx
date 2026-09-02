@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,13 +46,16 @@ export function TransaccionDialog({
   cajas,
   areas,
   transaccion,
+  autoAbrir,
 }: {
   categorias: Categoria[];
   cajas: Caja[];
   areas: Area[];
   transaccion?: TransaccionExistente;
+  autoAbrir?: boolean;
 }) {
   const esEdicion = !!transaccion;
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<"INGRESO" | "EGRESO">((transaccion?.tipo as "INGRESO" | "EGRESO") ?? "INGRESO");
   const accion = esEdicion ? actualizarTransaccion.bind(null, transaccion!.id) : crearTransaccion;
@@ -60,6 +64,14 @@ export function TransaccionDialog({
   const categoriasFiltradas = useMemo(() => categorias.filter((c) => c.tipo === tipo), [categorias, tipo]);
   const hoy = new Date().toISOString().slice(0, 10);
   const fechaInicial = transaccion ? transaccion.fecha.toISOString().slice(0, 10) : hoy;
+
+  useEffect(() => {
+    if (autoAbrir) {
+      setOpen(true);
+      router.replace("/transacciones");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAbrir]);
 
   useEffect(() => {
     if (state.ok) {

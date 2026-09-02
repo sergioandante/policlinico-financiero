@@ -39,12 +39,14 @@ export function TransaccionesTable({
   cajas,
   areas,
   puedeEditar,
+  autoAbrirId,
 }: {
   transacciones: Transaccion[];
   categorias: Categoria[];
   cajas: Caja[];
   areas: Area[];
   puedeEditar: boolean;
+  autoAbrirId?: string;
 }) {
   const columnas = puedeEditar ? 9 : 8;
   return (
@@ -105,7 +107,13 @@ export function TransaccionesTable({
             </TableCell>
             {puedeEditar && (
               <TableCell>
-                <TransaccionDialog categorias={categorias} cajas={cajas} areas={areas} transaccion={t} />
+                <TransaccionDialog
+                  categorias={categorias}
+                  cajas={cajas}
+                  areas={areas}
+                  transaccion={t}
+                  autoAbrir={t.id === autoAbrirId}
+                />
               </TableCell>
             )}
           </TableRow>
