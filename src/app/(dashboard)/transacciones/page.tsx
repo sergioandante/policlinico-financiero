@@ -16,12 +16,19 @@ import { formatearFecha } from "@/lib/utils";
 export default async function TransaccionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tipo?: string; categoriaId?: string; areaId?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{
+    tipo?: string;
+    categoriaId?: string;
+    areaId?: string;
+    desde?: string;
+    hasta?: string;
+    editar?: string;
+  }>;
 }) {
   const session = await auth();
   if (!session?.user || !puede(session.user.rol, "verTransacciones")) redirect("/dashboard");
 
-  const filtros = await searchParams;
+  const { editar, ...filtros } = await searchParams;
   const [transacciones, categorias, cajas, areas] = await Promise.all([
     obtenerTransacciones(filtros),
     obtenerCategorias(),
@@ -123,6 +130,7 @@ export default async function TransaccionesPage({
             cajas={cajas}
             areas={areas}
             puedeEditar={puedeEditar}
+            autoAbrirId={editar}
           />
         </CardContent>
       </Card>

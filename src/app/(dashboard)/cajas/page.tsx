@@ -121,7 +121,7 @@ export default async function CajasPage({
             </Button>
           </form>
 
-          <MovimientosTable movimientos={movimientos} />
+          <MovimientosTable movimientos={movimientos} puedeEditar={puedeRegistrar} />
         </CardContent>
       </Card>
     </div>
