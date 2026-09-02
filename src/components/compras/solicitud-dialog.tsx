@@ -16,18 +16,33 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { crearSolicitudCompra } from "@/lib/actions/compras";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { crearSolicitudCompra, actualizarSolicitudCompra } from "@/lib/actions/compras";
+import { PlusCircle, Trash2, Pencil } from "lucide-react";
 import { formatearMoneda } from "@/lib/utils";
 
 type Area = { id: string; nombre: string };
 type Item = { descripcion: string; cantidad: string; precioEstimado: string };
+type SolicitudExistente = {
+  id: string;
+  areaId: string;
+  justificacion: string;
+  items: { descripcion: string; cantidad: number; precioEstimado: number }[];
+};
 
-export function SolicitudDialog({ areas }: { areas: Area[] }) {
+export function SolicitudDialog({ areas, solicitud }: { areas: Area[]; solicitud?: SolicitudExistente }) {
+  const esEdicion = !!solicitud;
   const [open, setOpen] = useState(false);
-  const [areaId, setAreaId] = useState(areas[0]?.id ?? "");
-  const [justificacion, setJustificacion] = useState("");
-  const [items, setItems] = useState<Item[]>([{ descripcion: "", cantidad: "1", precioEstimado: "" }]);
+  const [areaId, setAreaId] = useState(solicitud?.areaId ?? areas[0]?.id ?? "");
+  const [justificacion, setJustificacion] = useState(solicitud?.justificacion ?? "");
+  const [items, setItems] = useState<Item[]>(
+    solicitud
+      ? solicitud.items.map((i) => ({
+          descripcion: i.descripcion,
+          cantidad: String(i.cantidad),
+          precioEstimado: String(i.precioEstimado),
+        }))
+      : [{ descripcion: "", cantidad: "1", precioEstimado: "" }]
+  );
   const [pending, startTransition] = useTransition();
 
   const total = items.reduce((sum, i) => sum + (Number(i.cantidad) || 0) * (Number(i.precioEstimado) || 0), 0);
@@ -53,7 +68,7 @@ export function SolicitudDialog({ areas }: { areas: Area[] }) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const res = await crearSolicitudCompra({
+      const payload = {
         areaId,
         justificacion,
         items: items
@@ -63,13 +78,16 @@ export function SolicitudDialog({ areas }: { areas: Area[] }) {
             cantidad: Number(i.cantidad) || 1,
             precioEstimado: Number(i.precioEstimado) || 0,
           })),
-      });
+      };
+      const res = esEdicion
+        ? await actualizarSolicitudCompra(solicitud!.id, payload)
+        : await crearSolicitudCompra(payload);
       if (res.ok) {
-        toast.success("Solicitud de compra creada.");
+        toast.success(esEdicion ? "Solicitud actualizada." : "Solicitud de compra creada.");
         setOpen(false);
-        limpiar();
+        if (!esEdicion) limpiar();
       } else {
-        toast.error(res.error ?? "Error al crear la solicitud");
+        toast.error(res.error ?? "Error al guardar la solicitud");
       }
     });
   }
@@ -77,14 +95,20 @@ export function SolicitudDialog({ areas }: { areas: Area[] }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
-          <PlusCircle className="w-4 h-4" />
-          Nueva solicitud
-        </Button>
+        {esEdicion ? (
+          <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Pencil className="w-4 h-4" />
+          </Button>
+        ) : (
+          <Button size="sm">
+            <PlusCircle className="w-4 h-4" />
+            Nueva solicitud
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Nueva solicitud de compra</DialogTitle>
+          <DialogTitle>{esEdicion ? "Editar solicitud de compra" : "Nueva solicitud de compra"}</DialogTitle>
           <DialogDescription>Reemplaza el formato en papel — queda registrada y trazable.</DialogDescription>
         </DialogHeader>
 
@@ -165,7 +189,7 @@ export function SolicitudDialog({ areas }: { areas: Area[] }) {
 
           <DialogFooter>
             <Button type="submit" disabled={pending}>
-              {pending ? "Enviando..." : "Enviar solicitud"}
+              {pending ? "Guardando..." : esEdicion ? "Guardar cambios" : "Enviar solicitud"}
             </Button>
           </DialogFooter>
         </form>

@@ -14,10 +14,12 @@ export async function obtenerSolicitudesCompra(filtros: { estado?: string; areaI
   return solicitudes.map((s) => ({
     id: s.id,
     codigo: s.codigo,
+    areaId: s.areaId,
     area: s.area.nombre,
     justificacion: s.justificacion,
     montoEstimado: Number(s.montoEstimado),
     estado: s.estado,
+    solicitanteId: s.solicitanteId,
     solicitante: s.solicitante.nombre,
     aprobador: s.aprobador?.nombre ?? null,
     comentarioResolucion: s.comentarioResolucion,
