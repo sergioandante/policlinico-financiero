@@ -29,6 +29,7 @@ export async function obtenerMovimientos(filtros: {
 
   return movimientos.map((m) => ({
     id: m.id,
+    cajaId: m.cajaId,
     caja: m.caja.nombre,
     cajaDestino: m.cajaDestino?.nombre ?? null,
     tipo: m.tipo,
@@ -37,6 +38,7 @@ export async function obtenerMovimientos(filtros: {
     saldoNuevo: Number(m.saldoNuevo),
     descripcion: m.descripcion,
     beneficiario: m.beneficiario,
+    transaccionId: m.transaccionId,
     usuario: m.usuario.nombre,
     fecha: m.fecha,
   }));
