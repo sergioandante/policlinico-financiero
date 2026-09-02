@@ -67,7 +67,12 @@ export default async function ComprasPage({
             </Button>
           </form>
 
-          <SolicitudesTable solicitudes={solicitudes} puedeAprobar={puedeAprobar} />
+          <SolicitudesTable
+            solicitudes={solicitudes}
+            areas={areas}
+            puedeAprobar={puedeAprobar}
+            usuarioActualId={session.user.id}
+          />
         </CardContent>
       </Card>
     </div>

@@ -14,6 +14,7 @@ import {
   Building2,
   LineChart,
   Target,
+  Tags,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { puede, type Rol } from "@/lib/permisos";
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permiso: "verDashboard" as const },
   { href: "/reportes", label: "Reportes Diarios", icon: FileBarChart, permiso: "verReportes" as const },
   { href: "/transacciones", label: "Transacciones", icon: ArrowLeftRight, permiso: "verTransacciones" as const },
+  { href: "/categorias", label: "Categorías", icon: Tags, permiso: "gestionarCategorias" as const },
   { href: "/cajas", label: "Control de Cajas", icon: Wallet2, permiso: "verCajas" as const },
   { href: "/areas", label: "Áreas", icon: Building2, permiso: "verAreas" as const },
   { href: "/presupuestos", label: "Presupuestos", icon: PiggyBank, permiso: "verPresupuestos" as const },

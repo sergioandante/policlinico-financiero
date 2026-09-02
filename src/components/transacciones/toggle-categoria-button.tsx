@@ -1,0 +1,27 @@
+"use client";
+
+import { useTransition } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { cambiarEstadoCategoria } from "@/lib/actions/categorias";
+
+export function ToggleCategoriaButton({ categoriaId, activo }: { categoriaId: string; activo: boolean }) {
+  const [pending, startTransition] = useTransition();
+
+  function handleClick() {
+    startTransition(async () => {
+      const res = await cambiarEstadoCategoria(categoriaId, !activo);
+      if (res.ok) {
+        toast.success(activo ? "Categoría desactivada." : "Categoría activada.");
+      } else {
+        toast.error(res.error ?? "Error");
+      }
+    });
+  }
+
+  return (
+    <Button size="sm" variant={activo ? "outline" : "default"} onClick={handleClick} disabled={pending}>
+      {activo ? "Desactivar" : "Activar"}
+    </Button>
+  );
+}

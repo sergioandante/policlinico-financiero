@@ -12,6 +12,30 @@ import { puede } from "@/lib/permisos";
 // quede inconsistente si algo falla a medio camino.
 // ---------------------------------------------------------------------------
 
+const esquemaCaja = z.object({
+  nombre: z.string().min(2, "El nombre es muy corto"),
+});
+
+// Solo renombra la caja (el "tipo" CHICA/GRANDE es fijo, es lo que usa el
+// resto del sistema para saber cuál es cuál). El saldo nunca se edita aquí
+// directamente: siempre pasa por un movimiento, para que quede auditado.
+export async function actualizarCaja(cajaId: string, _prevState: any, formData: FormData) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "registrarMovimientoCaja")) {
+    return { ok: false, error: "No tienes permiso para editar cajas." };
+  }
+
+  const parsed = esquemaCaja.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  await prisma.caja.update({ where: { id: cajaId }, data: { nombre: parsed.data.nombre } });
+  revalidatePath("/cajas");
+  revalidatePath("/dashboard");
+  return { ok: true, error: null };
+}
+
 const esquemaMovimiento = z.object({
   cajaId: z.string().min(1),
   tipo: z.enum(["INGRESO", "EGRESO", "RETIRO", "ADELANTO_SUELDO"]),

@@ -59,7 +59,14 @@ export default async function CajasPage({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {cajas.map((c) => (
-          <CajaBalanceCard key={c.id} nombre={c.nombre} tipo={c.tipo} saldo={c.saldoActual} />
+          <CajaBalanceCard
+            key={c.id}
+            id={c.id}
+            nombre={c.nombre}
+            tipo={c.tipo}
+            saldo={c.saldoActual}
+            puedeEditar={puedeRegistrar}
+          />
         ))}
       </div>
 
