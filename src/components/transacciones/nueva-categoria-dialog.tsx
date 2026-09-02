@@ -28,9 +28,13 @@ type CategoriaExistente = { id: string; nombre: string; esFijo: boolean };
 export function NuevaCategoriaDialog({
   tipo,
   categoria,
+  inline,
 }: {
   tipo: "INGRESO" | "EGRESO";
   categoria?: CategoriaExistente;
+  // true = link chico anidado en TransaccionDialog; false/undefined = botón
+  // normal (usado en /categorias, donde debe distinguirse de ingreso/egreso).
+  inline?: boolean;
 }) {
   const esEdicion = !!categoria;
   const router = useRouter();
@@ -57,10 +61,15 @@ export function NuevaCategoriaDialog({
           <Button size="icon" variant="ghost" className="h-8 w-8">
             <Pencil className="w-4 h-4" />
           </Button>
-        ) : (
+        ) : inline ? (
           <Button type="button" size="sm" variant="ghost" className="h-auto p-0 text-xs font-normal text-brand-600">
             <PlusCircle className="w-3.5 h-3.5" />
             Nueva categoría
+          </Button>
+        ) : (
+          <Button size="sm">
+            <PlusCircle className="w-4 h-4" />
+            Nueva categoría de {tipo === "INGRESO" ? "ingreso" : "egreso"}
           </Button>
         )}
       </DialogTrigger>
