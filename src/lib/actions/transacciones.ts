@@ -184,17 +184,20 @@ export async function eliminarTransaccion(id: string) {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const movimiento = await tx.movimientoCaja.findFirst({ where: { transaccionId: id } });
+    await prisma.$transaction(
+      async (tx) => {
+        const movimiento = await tx.movimientoCaja.findFirst({ where: { transaccionId: id } });
 
-      await tx.transaccion.delete({ where: { id } });
+        await tx.transaccion.delete({ where: { id } });
 
-      if (movimiento) {
-        await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
-        await sincronizarFechasMovimientosCaja(tx, movimiento.cajaId);
-        await recalcularSaldosCaja(tx, movimiento.cajaId);
-      }
-    });
+        if (movimiento) {
+          await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
+          await sincronizarFechasMovimientosCaja(tx, movimiento.cajaId);
+          await recalcularSaldosCaja(tx, movimiento.cajaId);
+        }
+      },
+      { timeout: 20000 }
+    );
   } catch (e: any) {
     return { ok: false, error: e.message ?? "Error al eliminar la transacción" };
   }
