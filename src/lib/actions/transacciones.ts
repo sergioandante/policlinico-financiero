@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
+import { recalcularSaldosCaja } from "@/lib/actions/cajas";
 
 const esquemaTransaccion = z.object({
   tipo: z.enum(["INGRESO", "EGRESO"]),
@@ -161,6 +162,38 @@ export async function actualizarTransaccion(id: string, _prevState: any, formDat
     });
   } catch (e: any) {
     return { ok: false, error: e.message ?? "Error al actualizar la transacción" };
+  }
+
+  revalidatePath("/transacciones");
+  revalidatePath("/cajas");
+  revalidatePath("/dashboard");
+  revalidatePath("/presupuestos");
+  return { ok: true, error: null };
+}
+
+// Elimina una transacción. Si estaba ligada a una caja, borra su movimiento
+// asociado y recalcula el saldo cronológico completo de esa caja (en vez de
+// solo revertir el monto), para que borrar una transacción antigua no deje
+// descuadrado el historial de movimientos posteriores.
+export async function eliminarTransaccion(id: string) {
+  const session = await auth();
+  if (!session?.user || !puede(session.user.rol, "editarTransacciones")) {
+    return { ok: false, error: "No tienes permiso para eliminar transacciones." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const movimiento = await tx.movimientoCaja.findFirst({ where: { transaccionId: id } });
+
+      await tx.transaccion.delete({ where: { id } });
+
+      if (movimiento) {
+        await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
+        await recalcularSaldosCaja(tx, movimiento.cajaId);
+      }
+    });
+  } catch (e: any) {
+    return { ok: false, error: e.message ?? "Error al eliminar la transacción" };
   }
 
   revalidatePath("/transacciones");

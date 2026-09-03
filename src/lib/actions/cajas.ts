@@ -16,7 +16,7 @@ const TIPOS_SALIDA = new Set(["EGRESO", "RETIRO", "ADELANTO_SUELDO", "TRASPASO_S
 // cualquier edición o borrado de un movimiento histórico, porque cambiar un
 // monto a mitad de la lista desactualiza el saldo "arrastrado" de todo lo que
 // vino después — así el historial nunca queda descuadrado.
-async function recalcularSaldosCaja(tx: Prisma.TransactionClient, cajaId: string) {
+export async function recalcularSaldosCaja(tx: Prisma.TransactionClient, cajaId: string) {
   const movimientos = await tx.movimientoCaja.findMany({
     where: { cajaId },
     orderBy: [{ fecha: "asc" }, { createdAt: "asc" }],

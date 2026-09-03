@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatearMoneda, formatearFechaHora } from "@/lib/utils";
 import { EditarMovimientoDialog } from "@/components/cajas/editar-movimiento-dialog";
 import { EliminarMovimientoButton } from "@/components/cajas/eliminar-movimiento-button";
+import { EliminarTransaccionButton } from "@/components/transacciones/eliminar-transaccion-button";
 
 const ETIQUETAS: Record<string, { texto: string; variant: any }> = {
   INGRESO: { texto: "Ingreso", variant: "success" },
@@ -81,13 +82,16 @@ export function MovimientosTable({ movimientos, puedeEditar }: { movimientos: Mo
               {puedeEditar && (
                 <TableCell>
                   {vieneDeTransaccion ? (
-                    <Link
-                      href={`/transacciones?editar=${m.transaccionId}`}
-                      className="inline-flex items-center gap-1 text-[10px] text-brand-600 hover:underline whitespace-nowrap"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      Editar en Transacciones
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/transacciones?editar=${m.transaccionId}`}
+                        className="inline-flex items-center gap-1 text-[10px] text-brand-600 hover:underline whitespace-nowrap"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Editar en Transacciones
+                      </Link>
+                      <EliminarTransaccionButton transaccionId={m.transaccionId!} />
+                    </div>
                   ) : (
                     <div className="flex items-center gap-0.5">
                       {!esTraspaso && (
