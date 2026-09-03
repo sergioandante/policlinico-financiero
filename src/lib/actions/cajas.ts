@@ -42,6 +42,25 @@ export async function recalcularSaldosCaja(tx: Prisma.TransactionClient, cajaId:
   await tx.caja.update({ where: { id: cajaId }, data: { saldoActual: saldo } });
 }
 
+// Los movimientos generados por una transacción no copiaban la fecha elegida
+// en el formulario (quedaban con la fecha de creación, "ahora"), lo que podía
+// desordenar la recalculación cronológica si la transacción se registró con
+// fecha atrasada. Sincroniza esos movimientos con la fecha real de su
+// transacción antes de recalcular, para que el orden coincida con lo que se
+// ve en Transacciones.
+export async function sincronizarFechasMovimientosCaja(tx: Prisma.TransactionClient, cajaId: string) {
+  const movimientos = await tx.movimientoCaja.findMany({
+    where: { cajaId, transaccionId: { not: null } },
+    include: { transaccion: true },
+  });
+
+  for (const m of movimientos) {
+    if (m.transaccion && m.transaccion.fecha.getTime() !== m.fecha.getTime()) {
+      await tx.movimientoCaja.update({ where: { id: m.id }, data: { fecha: m.transaccion.fecha } });
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Registrar movimiento simple: INGRESO, EGRESO, RETIRO o ADELANTO_SUELDO
 // sobre UNA caja. Todo pasa por prisma.$transaction para que el saldo nunca
@@ -260,6 +279,7 @@ export async function actualizarMovimientoCaja(movimientoId: string, _prevState:
         },
       });
 
+      await sincronizarFechasMovimientosCaja(tx, movimiento.cajaId);
       await recalcularSaldosCaja(tx, movimiento.cajaId);
     });
   } catch (e: any) {
@@ -299,6 +319,7 @@ export async function eliminarMovimientoCaja(movimientoId: string) {
       await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
 
       for (const cajaId of cajasAfectadas) {
+        await sincronizarFechasMovimientosCaja(tx, cajaId);
         await recalcularSaldosCaja(tx, cajaId);
       }
     });

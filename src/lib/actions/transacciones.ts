@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
-import { recalcularSaldosCaja } from "@/lib/actions/cajas";
+import { recalcularSaldosCaja, sincronizarFechasMovimientosCaja } from "@/lib/actions/cajas";
 
 const esquemaTransaccion = z.object({
   tipo: z.enum(["INGRESO", "EGRESO"]),
@@ -71,6 +71,7 @@ export async function crearTransaccion(_prevState: any, formData: FormData) {
             saldoAnterior,
             saldoNuevo,
             descripcion: data.descripcion,
+            fecha: new Date(data.fecha),
             transaccionId: transaccion.id,
             usuarioId: session.user.id,
           },
@@ -154,6 +155,7 @@ export async function actualizarTransaccion(id: string, _prevState: any, formDat
             saldoAnterior,
             saldoNuevo,
             descripcion: data.descripcion,
+            fecha: new Date(data.fecha),
             transaccionId: id,
             usuarioId: session.user.id,
           },
@@ -189,6 +191,7 @@ export async function eliminarTransaccion(id: string) {
 
       if (movimiento) {
         await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
+        await sincronizarFechasMovimientosCaja(tx, movimiento.cajaId);
         await recalcularSaldosCaja(tx, movimiento.cajaId);
       }
     });
