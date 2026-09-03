@@ -7,9 +7,44 @@ import { es } from "date-fns/locale";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 const TIPOS_SALIDA = new Set(["EGRESO", "RETIRO", "ADELANTO_SUELDO", "TRASPASO_SALIDA"]);
+
+// Recalcula saldoAnterior/saldoNuevo de TODOS los movimientos de una caja en
+// orden cronológico, y el saldoActual final de la caja. Se corre después de
+// cualquier edición o borrado de un movimiento histórico, porque cambiar un
+// monto a mitad de la lista desactualiza el saldo "arrastrado" de todo lo que
+// vino después — así el historial nunca queda descuadrado.
+// Todas las actualizaciones fila por fila de esta función van en UN solo
+// UPDATE por lote (en vez de un roundtrip a la base de datos por movimiento):
+// una caja con un historial largo puede tener decenas de movimientos, y
+// actualizarlos uno por uno dentro de la misma transacción interactiva de
+// Prisma puede superar su límite de tiempo por defecto (5s) y hacer que la
+// transacción expire a la mitad ("Transaction not found").
+async function actualizarEnLote(
+  tx: Prisma.TransactionClient,
+  cambios: { id: string; saldoAnterior?: number; saldoNuevo?: number; fecha?: Date }[]
+) {
+  if (cambios.length === 0) return;
+
+  await tx.$executeRaw(
+    Prisma.sql`
+      UPDATE movimientos_caja AS m
+      SET
+        "saldoAnterior" = COALESCE(v.saldo_anterior, m."saldoAnterior"),
+        "saldoNuevo" = COALESCE(v.saldo_nuevo, m."saldoNuevo"),
+        fecha = COALESCE(v.fecha, m.fecha)
+      FROM (VALUES ${Prisma.join(
+        cambios.map(
+          (c) =>
+            Prisma.sql`(${c.id}::text, ${c.saldoAnterior ?? null}::numeric, ${c.saldoNuevo ?? null}::numeric, ${c.fecha ?? null}::timestamp)`
+        )
+      )}) AS v(id, saldo_anterior, saldo_nuevo, fecha)
+      WHERE m.id = v.id;
+    `
+  );
+}
 
 // Recalcula saldoAnterior/saldoNuevo de TODOS los movimientos de una caja en
 // orden cronológico, y el saldoActual final de la caja. Se corre después de
@@ -23,6 +58,7 @@ export async function recalcularSaldosCaja(tx: Prisma.TransactionClient, cajaId:
   });
 
   let saldo = 0;
+  const cambios: { id: string; saldoAnterior: number; saldoNuevo: number }[] = [];
   for (const m of movimientos) {
     const monto = Number(m.monto);
     const saldoAnterior = saldo;
@@ -35,11 +71,31 @@ export async function recalcularSaldosCaja(tx: Prisma.TransactionClient, cajaId:
     }
 
     if (Number(m.saldoAnterior) !== saldoAnterior || Number(m.saldoNuevo) !== saldo) {
-      await tx.movimientoCaja.update({ where: { id: m.id }, data: { saldoAnterior, saldoNuevo: saldo } });
+      cambios.push({ id: m.id, saldoAnterior, saldoNuevo: saldo });
     }
   }
 
+  await actualizarEnLote(tx, cambios);
   await tx.caja.update({ where: { id: cajaId }, data: { saldoActual: saldo } });
+}
+
+// Los movimientos generados por una transacción no copiaban la fecha elegida
+// en el formulario (quedaban con la fecha de creación, "ahora"), lo que podía
+// desordenar la recalculación cronológica si la transacción se registró con
+// fecha atrasada. Sincroniza esos movimientos con la fecha real de su
+// transacción antes de recalcular, para que el orden coincida con lo que se
+// ve en Transacciones.
+export async function sincronizarFechasMovimientosCaja(tx: Prisma.TransactionClient, cajaId: string) {
+  const movimientos = await tx.movimientoCaja.findMany({
+    where: { cajaId, transaccionId: { not: null } },
+    include: { transaccion: true },
+  });
+
+  const cambios = movimientos
+    .filter((m) => m.transaccion && m.transaccion.fecha.getTime() !== m.fecha.getTime())
+    .map((m) => ({ id: m.id, fecha: m.transaccion!.fecha }));
+
+  await actualizarEnLote(tx, cambios);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,27 +297,31 @@ export async function actualizarMovimientoCaja(movimientoId: string, _prevState:
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const movimiento = await tx.movimientoCaja.findUniqueOrThrow({ where: { id: movimientoId } });
-      if (movimiento.transaccionId) {
-        throw new Error("Este movimiento viene de una transacción — edítalo desde Transacciones.");
-      }
-      if (movimiento.tipo === "TRASPASO_SALIDA" || movimiento.tipo === "TRASPASO_ENTRADA") {
-        throw new Error("Los traspasos no se pueden editar. Elimínalo y regístralo de nuevo si el monto es incorrecto.");
-      }
+    await prisma.$transaction(
+      async (tx) => {
+        const movimiento = await tx.movimientoCaja.findUniqueOrThrow({ where: { id: movimientoId } });
+        if (movimiento.transaccionId) {
+          throw new Error("Este movimiento viene de una transacción — edítalo desde Transacciones.");
+        }
+        if (movimiento.tipo === "TRASPASO_SALIDA" || movimiento.tipo === "TRASPASO_ENTRADA") {
+          throw new Error("Los traspasos no se pueden editar. Elimínalo y regístralo de nuevo si el monto es incorrecto.");
+        }
 
-      await tx.movimientoCaja.update({
-        where: { id: movimientoId },
-        data: {
-          monto: parsed.data.monto,
-          descripcion: parsed.data.descripcion,
-          beneficiario: parsed.data.beneficiario || null,
-          fecha: new Date(parsed.data.fecha),
-        },
-      });
+        await tx.movimientoCaja.update({
+          where: { id: movimientoId },
+          data: {
+            monto: parsed.data.monto,
+            descripcion: parsed.data.descripcion,
+            beneficiario: parsed.data.beneficiario || null,
+            fecha: new Date(parsed.data.fecha),
+          },
+        });
 
-      await recalcularSaldosCaja(tx, movimiento.cajaId);
-    });
+        await sincronizarFechasMovimientosCaja(tx, movimiento.cajaId);
+        await recalcularSaldosCaja(tx, movimiento.cajaId);
+      },
+      { timeout: 20000 }
+    );
   } catch (e: any) {
     return { ok: false, error: e.message ?? "Error al actualizar el movimiento" };
   }
@@ -278,30 +338,34 @@ export async function eliminarMovimientoCaja(movimientoId: string) {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const movimiento = await tx.movimientoCaja.findUniqueOrThrow({ where: { id: movimientoId } });
-      if (movimiento.transaccionId) {
-        throw new Error("Este movimiento viene de una transacción — elimínalo desde Transacciones.");
-      }
-
-      const cajasAfectadas = new Set([movimiento.cajaId]);
-
-      if (movimiento.traspasoRef) {
-        const par = await tx.movimientoCaja.findFirst({
-          where: { traspasoRef: movimiento.traspasoRef, id: { not: movimiento.id } },
-        });
-        if (par) {
-          cajasAfectadas.add(par.cajaId);
-          await tx.movimientoCaja.delete({ where: { id: par.id } });
+    await prisma.$transaction(
+      async (tx) => {
+        const movimiento = await tx.movimientoCaja.findUniqueOrThrow({ where: { id: movimientoId } });
+        if (movimiento.transaccionId) {
+          throw new Error("Este movimiento viene de una transacción — elimínalo desde Transacciones.");
         }
-      }
 
-      await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
+        const cajasAfectadas = new Set([movimiento.cajaId]);
 
-      for (const cajaId of cajasAfectadas) {
-        await recalcularSaldosCaja(tx, cajaId);
-      }
-    });
+        if (movimiento.traspasoRef) {
+          const par = await tx.movimientoCaja.findFirst({
+            where: { traspasoRef: movimiento.traspasoRef, id: { not: movimiento.id } },
+          });
+          if (par) {
+            cajasAfectadas.add(par.cajaId);
+            await tx.movimientoCaja.delete({ where: { id: par.id } });
+          }
+        }
+
+        await tx.movimientoCaja.delete({ where: { id: movimiento.id } });
+
+        for (const cajaId of cajasAfectadas) {
+          await sincronizarFechasMovimientosCaja(tx, cajaId);
+          await recalcularSaldosCaja(tx, cajaId);
+        }
+      },
+      { timeout: 20000 }
+    );
   } catch (e: any) {
     return { ok: false, error: e.message ?? "Error al eliminar el movimiento" };
   }
