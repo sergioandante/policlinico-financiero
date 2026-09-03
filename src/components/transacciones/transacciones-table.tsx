@@ -2,6 +2,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import { formatearMoneda, formatearFecha } from "@/lib/utils";
 import { TransaccionDialog } from "@/components/transacciones/transaccion-dialog";
+import { EliminarTransaccionButton } from "@/components/transacciones/eliminar-transaccion-button";
 
 type Transaccion = {
   id: string;
@@ -107,13 +108,16 @@ export function TransaccionesTable({
             </TableCell>
             {puedeEditar && (
               <TableCell>
-                <TransaccionDialog
-                  categorias={categorias}
-                  cajas={cajas}
-                  areas={areas}
-                  transaccion={t}
-                  autoAbrir={t.id === autoAbrirId}
-                />
+                <div className="flex items-center gap-0.5">
+                  <TransaccionDialog
+                    categorias={categorias}
+                    cajas={cajas}
+                    areas={areas}
+                    transaccion={t}
+                    autoAbrir={t.id === autoAbrirId}
+                  />
+                  <EliminarTransaccionButton transaccionId={t.id} />
+                </div>
               </TableCell>
             )}
           </TableRow>
