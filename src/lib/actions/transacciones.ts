@@ -7,18 +7,31 @@ import { auth } from "@/lib/auth";
 import { puede } from "@/lib/permisos";
 import { recalcularSaldosCaja, sincronizarFechasMovimientosCaja } from "@/lib/actions/cajas";
 
-const esquemaTransaccion = z.object({
-  tipo: z.enum(["INGRESO", "EGRESO"]),
-  monto: z.coerce.number().positive("El monto debe ser mayor a 0"),
-  fecha: z.string().min(1),
-  categoriaId: z.string().min(1, "Selecciona una categoría"),
-  areaId: z.string().min(1, "Selecciona el área"),
-  descripcion: z.string().min(3, "Agrega una descripción"),
-  metodoPago: z.enum(["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE_PLIN", "OTRO"]),
-  comprobante: z.string().optional(),
-  proveedorOCliente: z.string().optional(),
-  cajaId: z.string().optional(),
-});
+const METODOS_PAGO = ["EFECTIVO", "TARJETA", "TRANSFERENCIA", "YAPE_PLIN", "OTRO"] as const;
+
+const esquemaTransaccion = z
+  .object({
+    tipo: z.enum(["INGRESO", "EGRESO"]),
+    monto: z.coerce.number().positive("El monto debe ser mayor a 0"),
+    fecha: z.string().min(1),
+    categoriaId: z.string().min(1, "Selecciona una categoría"),
+    areaId: z.string().min(1, "Selecciona el área"),
+    descripcion: z.string().min(3, "Agrega una descripción"),
+    metodoPago: z.enum(METODOS_PAGO),
+    metodoPago2: z.enum(METODOS_PAGO).optional(),
+    montoMetodoPago2: z.coerce.number().positive("El monto del segundo método debe ser mayor a 0").optional(),
+    comprobante: z.string().optional(),
+    proveedorOCliente: z.string().optional(),
+    cajaId: z.string().optional(),
+  })
+  .refine((d) => !d.metodoPago2 || d.metodoPago2 !== d.metodoPago, {
+    message: "El segundo método de pago debe ser distinto al principal",
+    path: ["metodoPago2"],
+  })
+  .refine((d) => !d.metodoPago2 || (d.montoMetodoPago2 !== undefined && d.montoMetodoPago2 < d.monto), {
+    message: "El monto del segundo método debe ser menor al monto total",
+    path: ["montoMetodoPago2"],
+  });
 
 // Crea la transacción y, si está ligada a una caja, genera el movimiento de
 // caja correspondiente en la MISMA transacción de base de datos.
@@ -46,6 +59,8 @@ export async function crearTransaccion(_prevState: any, formData: FormData) {
           areaId: data.areaId,
           descripcion: data.descripcion,
           metodoPago: data.metodoPago,
+          metodoPago2: data.metodoPago2 || null,
+          montoMetodoPago2: data.montoMetodoPago2 ?? null,
           comprobante: data.comprobante || null,
           proveedorOCliente: data.proveedorOCliente || null,
           cajaId: data.cajaId || null,
@@ -131,6 +146,8 @@ export async function actualizarTransaccion(id: string, _prevState: any, formDat
           areaId: data.areaId,
           descripcion: data.descripcion,
           metodoPago: data.metodoPago,
+          metodoPago2: data.metodoPago2 || null,
+          montoMetodoPago2: data.montoMetodoPago2 ?? null,
           comprobante: data.comprobante || null,
           proveedorOCliente: data.proveedorOCliente || null,
           cajaId: data.cajaId || null,
