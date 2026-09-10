@@ -16,6 +16,8 @@ type Transaccion = {
   area: string | null;
   descripcion: string;
   metodoPago: string;
+  metodoPago2: string | null;
+  montoMetodoPago2: number | null;
   comprobante: string | null;
   proveedorOCliente: string | null;
   cajaId: string | null;
@@ -98,7 +100,18 @@ export function TransaccionesTable({
                 </Badge>
               )}
             </TableCell>
-            <TableCell className="text-xs text-muted-foreground">{METODOS[t.metodoPago]}</TableCell>
+            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+              {t.metodoPago2 ? (
+                <>
+                  <div>{METODOS[t.metodoPago]}</div>
+                  <div className="text-[10px]">
+                    + {METODOS[t.metodoPago2]} (S/ {t.montoMetodoPago2?.toFixed(2)})
+                  </div>
+                </>
+              ) : (
+                METODOS[t.metodoPago]
+              )}
+            </TableCell>
             <TableCell className="text-xs text-muted-foreground">{t.usuario}</TableCell>
             <TableCell
               className={`text-right font-tabular font-medium ${t.tipo === "INGRESO" ? "text-ingreso" : "text-egreso"}`}

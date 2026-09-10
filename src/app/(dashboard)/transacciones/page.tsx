@@ -47,6 +47,8 @@ export default async function TransaccionesPage({
     Monto: t.monto,
     Descripcion: t.descripcion,
     MetodoPago: t.metodoPago,
+    MetodoPago2: t.metodoPago2 ?? "",
+    MontoMetodoPago2: t.montoMetodoPago2 ?? "",
     RegistradoPor: t.usuario,
   }));
 

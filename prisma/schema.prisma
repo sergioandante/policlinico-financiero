@@ -144,6 +144,8 @@ model Transaccion {
   area          Area?    @relation(fields: [areaId], references: [id])
   descripcion   String
   metodoPago    String   @default("EFECTIVO")
+  metodoPago2   String? // segundo método, cuando el pago se dividió en dos
+  montoMetodoPago2 Decimal? // monto pagado con metodoPago2; el resto (monto - este) va a metodoPago
   comprobante   String? // número de boleta/factura
   proveedorOCliente String?
   cajaId        String? // null = no afecta caja (ej. transferencia directa a banco)

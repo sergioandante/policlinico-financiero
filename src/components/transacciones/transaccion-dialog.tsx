@@ -36,10 +36,20 @@ type TransaccionExistente = {
   areaId: string | null;
   descripcion: string;
   metodoPago: string;
+  metodoPago2: string | null;
+  montoMetodoPago2: number | null;
   comprobante: string | null;
   proveedorOCliente: string | null;
   cajaId: string | null;
 };
+
+const METODOS_PAGO: { value: string; label: string }[] = [
+  { value: "EFECTIVO", label: "Efectivo" },
+  { value: "TARJETA", label: "Tarjeta" },
+  { value: "TRANSFERENCIA", label: "Transferencia" },
+  { value: "YAPE_PLIN", label: "Yape / Plin" },
+  { value: "OTRO", label: "Otro" },
+];
 
 export function TransaccionDialog({
   categorias,
@@ -58,8 +68,16 @@ export function TransaccionDialog({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<"INGRESO" | "EGRESO">((transaccion?.tipo as "INGRESO" | "EGRESO") ?? "INGRESO");
+  const [monto, setMonto] = useState(transaccion?.monto?.toString() ?? "");
+  const [metodoPago, setMetodoPago] = useState(transaccion?.metodoPago ?? "EFECTIVO");
+  const [pagoDividido, setPagoDividido] = useState(!!transaccion?.metodoPago2);
+  const [metodoPago2, setMetodoPago2] = useState(transaccion?.metodoPago2 ?? "");
+  const [montoMetodoPago2, setMontoMetodoPago2] = useState(transaccion?.montoMetodoPago2?.toString() ?? "");
   const accion = esEdicion ? actualizarTransaccion.bind(null, transaccion!.id) : crearTransaccion;
   const [state, formAction, pending] = useActionState(accion, initialState);
+
+  const montoPrincipalCalculado =
+    pagoDividido && monto && montoMetodoPago2 ? Number(monto) - Number(montoMetodoPago2) : null;
 
   const categoriasFiltradas = useMemo(() => categorias.filter((c) => c.tipo === tipo), [categorias, tipo]);
   const hoy = new Date().toISOString().slice(0, 10);
@@ -72,6 +90,18 @@ export function TransaccionDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAbrir]);
+
+  useEffect(() => {
+    if (open) {
+      setTipo((transaccion?.tipo as "INGRESO" | "EGRESO") ?? "INGRESO");
+      setMonto(transaccion?.monto?.toString() ?? "");
+      setMetodoPago(transaccion?.metodoPago ?? "EFECTIVO");
+      setPagoDividido(!!transaccion?.metodoPago2);
+      setMetodoPago2(transaccion?.metodoPago2 ?? "");
+      setMontoMetodoPago2(transaccion?.montoMetodoPago2?.toString() ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (state.ok) {
@@ -169,24 +199,89 @@ export function TransaccionDialog({
                 min="0.01"
                 required
                 placeholder="0.00"
-                defaultValue={transaccion?.monto}
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
               <Label>Método de pago</Label>
-              <Select name="metodoPago" defaultValue={transaccion?.metodoPago ?? "EFECTIVO"} required>
+              <Select name="metodoPago" value={metodoPago} onValueChange={setMetodoPago} required>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EFECTIVO">Efectivo</SelectItem>
-                  <SelectItem value="TARJETA">Tarjeta</SelectItem>
-                  <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
-                  <SelectItem value="YAPE_PLIN">Yape / Plin</SelectItem>
-                  <SelectItem value="OTRO">Otro</SelectItem>
+                  {METODOS_PAGO.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pagoDividido}
+                onChange={(e) => {
+                  setPagoDividido(e.target.checked);
+                  if (!e.target.checked) {
+                    setMetodoPago2("");
+                    setMontoMetodoPago2("");
+                  }
+                }}
+                className="h-4 w-4 rounded border-input"
+              />
+              ¿Se pagó con dos métodos? (ej. parte Yape, parte efectivo)
+            </label>
+
+            {pagoDividido && (
+              <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-muted/40 p-3">
+                <div className="space-y-1.5">
+                  <Label>Segundo método</Label>
+                  <Select name="metodoPago2" value={metodoPago2} onValueChange={setMetodoPago2} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {METODOS_PAGO.filter((m) => m.value !== metodoPago).map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Monto con el segundo método (S/)</Label>
+                  <Input
+                    name="montoMetodoPago2"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="0.00"
+                    value={montoMetodoPago2}
+                    onChange={(e) => setMontoMetodoPago2(e.target.value)}
+                  />
+                </div>
+                <p
+                  className={`col-span-2 text-xs ${
+                    montoPrincipalCalculado !== null && montoPrincipalCalculado <= 0
+                      ? "text-egreso"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {montoPrincipalCalculado !== null
+                    ? `Quedan S/ ${montoPrincipalCalculado.toFixed(2)} con ${
+                        METODOS_PAGO.find((m) => m.value === metodoPago)?.label ?? metodoPago
+                      }.`
+                    : "Ingresa el monto total y el monto del segundo método."}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

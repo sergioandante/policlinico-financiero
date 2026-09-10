@@ -44,6 +44,8 @@ export async function obtenerTransacciones(filtros: {
     area: t.area?.nombre ?? null,
     descripcion: t.descripcion,
     metodoPago: t.metodoPago,
+    metodoPago2: t.metodoPago2,
+    montoMetodoPago2: t.montoMetodoPago2 ? Number(t.montoMetodoPago2) : null,
     comprobante: t.comprobante,
     proveedorOCliente: t.proveedorOCliente,
     cajaId: t.cajaId,
